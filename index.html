@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Mapa 3D com as 68 mil edificações do centro de São Paulo, coloridas pelo ano de construção (IPTU 2026 + GeoSampa).">
+<meta property="og:title" content="Camadas São Paulo">
+<meta property="og:description" content="Cada edificação do centro de São Paulo, colorida pelo ano em que foi construída e situada na história que a formou.">
+<meta property="og:type" content="website">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}</style>
+<title>Camadas São Paulo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D city; floating legend left, info card right, timeline strip along the bottom. */
+:root{
+  --ground:#e7e1d6; --block:#f3efe7; --ink:#1c1b19; --muted:#77716a; --line:rgba(28,27,25,.12);
+  --panel:rgba(250,248,243,.72); --panel-solid:#faf8f3; --accent:#a8432c; --chip:#1c1b19; --chip-ink:#faf8f3;
+  --haze:rgba(231,225,214,.92); --blur:18px;
+  --f-display:"Instrument Serif","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121315; --block:#1c1d20; --ink:#ece8e1; --muted:#99938a; --line:rgba(236,232,225,.12);
+  --panel:rgba(22,23,26,.7); --panel-solid:#18191c; --accent:#d9795c; --chip:#ece8e1; --chip-ink:#121315; --haze:rgba(18,19,21,.9); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --ground:#121315; --block:#1c1d20; --ink:#ece8e1; --muted:#99938a; --line:rgba(236,232,225,.12);
+  --panel:rgba(22,23,26,.7); --panel-solid:#18191c; --accent:#d9795c; --chip:#ece8e1; --chip-ink:#121315; --haze:rgba(18,19,21,.9); color-scheme:dark}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-body);overflow:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#map{position:fixed;inset:0}
+.haze{position:fixed;left:0;right:0;top:0;height:38%;z-index:1;pointer-events:none;background:linear-gradient(to bottom,var(--haze) 0%,color-mix(in srgb,var(--haze) 55%,transparent) 35%,transparent 100%)}
+@media (max-width:820px){:root{--blur:8px}}
+.ui{position:fixed;z-index:2}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* header */
+.brand{top:calc(14px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));pointer-events:none}
+.brand h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(40px,6vw,78px);line-height:.88;letter-spacing:-.015em;text-wrap:balance}
+.brand h1 small{display:block;font-family:var(--f-mono);font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.brand .byline{margin:8px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;font-family:var(--f-mono);font-size:11.5px;letter-spacing:.04em;pointer-events:auto}
+.brand .social{display:flex;gap:6px}
+.brand .soc{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border:1px solid var(--line);border-radius:999px;background:var(--panel);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));color:var(--ink)!important;text-decoration:none;font-family:var(--f-body);font-size:12.5px;font-weight:500;letter-spacing:0;transition:border-color .15s,background .15s}
+.brand .soc:hover{border-color:var(--accent);background:var(--panel-solid)}
+.brand .soc svg{width:14px;height:14px;flex:none;color:var(--accent)}
+.brand .who a{color:var(--ink);text-decoration-color:var(--accent);text-underline-offset:3px}
+.brand p{margin:10px 0 0;max-width:42ch;font-size:13px;line-height:1.45;color:var(--muted)}
+.modes{top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);display:flex;gap:2px;padding:3px;background:var(--panel);border:1px solid var(--line);border-radius:999px;backdrop-filter:blur(var(--blur)) saturate(1.2);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.2);box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06)}
+.modes button{padding:6px 13px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap}
+.modes button[aria-pressed="true"]{background:var(--chip);color:var(--chip-ink)}
+.year{top:calc(10px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));text-align:right}
+.year b{display:block;font-family:var(--f-display);font-weight:400;font-size:clamp(46px,6.6vw,88px);line-height:.85;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.year span{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tools{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
+.tools button{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur))}
+.tools button[aria-pressed="true"]{background:var(--chip);color:var(--chip-ink);border-color:var(--chip)}
+
+/* legend */
+.legend{top:calc(206px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));width:300px;max-height:calc(100% - 350px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 18px 14px;backdrop-filter:blur(var(--blur)) saturate(1.2);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.2);box-shadow:0 1px 2px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.07)}
+.legend h2{margin:0 0 10px;font-family:var(--f-mono);font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.row{display:grid;grid-template-columns:14px 1fr auto;gap:9px;align-items:center;width:100%;text-align:left;padding:5px 6px;margin:0 -6px;border-radius:6px;font-size:13px}
+.row:hover{background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.row[aria-pressed="true"]{background:color-mix(in srgb,var(--ink) 11%,transparent)}
+.row i{width:12px;height:12px;border-radius:50%;display:block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+.row span{min-width:0}
+.row em{font-style:normal;font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.story{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:13px;line-height:1.5}
+.story strong{display:block;font-family:var(--f-display);font-weight:400;font-size:22px;line-height:1.1;margin-bottom:4px}
+.hint{margin:10px 0 0;font-size:12px;color:var(--muted);line-height:1.45}
+.ramp{height:12px;border-radius:3px;margin:4px 0 6px}
+.ramp-lab{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+
+/* info card */
+.card{top:calc(206px + env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));width:310px;background:var(--panel-solid);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 1px 2px rgba(0,0,0,.05),0 18px 48px rgba(0,0,0,.14)}
+.card .close{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;font-size:18px;line-height:1;color:var(--muted)}
+.card .yr{font-family:var(--f-display);font-weight:400;font-size:56px;line-height:.9;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.card .per{display:inline-flex;align-items:center;gap:6px;margin:8px 0 10px;font-size:12px;font-weight:500;color:var(--muted)}
+.card .per::before{content:'';width:10px;height:10px;border-radius:50%;background:var(--pc)}
+.card .mini{position:relative;height:6px;border-radius:3px;margin:2px 0 14px;display:flex;overflow:hidden}
+.card .mini span{flex:1}
+.card .mini b{position:absolute;top:-3px;width:2px;height:12px;background:var(--ink);border-radius:1px}
+.card .mini-lab{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10px;color:var(--muted);margin:-10px 0 12px}
+.card h3{margin:0 0 8px;font-size:15px;font-weight:600;padding-right:24px}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:13px}
+.card dt{color:var(--muted)}
+.card dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.card .tb{margin-top:10px;padding:8px 10px;border-radius:6px;background:color-mix(in srgb,var(--accent) 12%,transparent);font-size:12.5px;line-height:1.45}
+.card a{color:var(--accent)}
+
+/* timeline */
+.timeline{left:0;right:0;bottom:0;padding:8px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:end;background:linear-gradient(to top,var(--ground) 55%,transparent)}
+.play{width:40px;height:40px;border-radius:50%;background:var(--chip);color:var(--chip-ink);display:grid;place-items:center;font-size:15px}
+.tl-wrap{position:relative;min-width:0}
+#hist{display:block;width:100%;height:58px;cursor:ew-resize;touch-action:none}
+.ticks{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:10.5px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.nav-hint{position:absolute;right:0;top:-22px;font-size:11px;color:var(--muted)}
+
+/* about */
+.about{inset:0;z-index:5;background:color-mix(in srgb,var(--ground) 70%,transparent);display:grid;place-items:center;padding:20px max(16px,env(safe-area-inset-right,0px)) 20px max(16px,env(safe-area-inset-left,0px))}
+.about article{max-width:620px;max-height:100%;overflow:auto;background:var(--panel-solid);border:1px solid var(--line);border-radius:12px;padding:22px 24px;font-size:14px;line-height:1.55;position:relative}
+.about article{max-width:680px}
+.atabs{display:flex;flex-wrap:wrap;gap:4px;margin:0 32px 14px 0;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.atabs button{padding:6px 11px;border-radius:999px;font-size:13px;font-weight:500;border:1px solid var(--line)}
+.atabs button[aria-selected="true"]{background:var(--chip);color:var(--chip-ink);border-color:var(--chip)}
+.steps{margin:10px 0 0;padding-left:22px;display:grid;gap:8px}
+.steps li::marker{font-family:var(--f-mono);color:var(--accent);font-size:12px}
+.about .note{margin-top:14px;font-size:12.5px;color:var(--muted)}
+.contacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:14px}
+.cbtn{display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--ink)!important;min-width:0}
+.cbtn:hover{border-color:var(--accent)}
+.cbtn span{font-weight:600}
+.cbtn small{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.about h2{margin:0 0 8px;font-family:var(--f-display);font-weight:400;font-size:36px;line-height:1.05}
+.about h3{margin:18px 0 4px;font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.about ul{margin:0;padding-left:18px}
+.about a{color:var(--accent)}
+.loading{inset:0;z-index:4;display:grid;place-items:center;font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+
+@media (max-width:820px){
+  .modes{top:auto;bottom:calc(96px + env(safe-area-inset-bottom,0px));left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));transform:none;overflow-x:auto;scrollbar-width:none}
+  .modes::-webkit-scrollbar{display:none}
+  .brand .who{display:none}
+  .brand .soc span{display:none}
+  .brand .soc{padding:7px}
+  .brand .soc svg{width:16px;height:16px}
+  .legend{top:auto;bottom:calc(140px + env(safe-area-inset-bottom,0px));width:auto;right:max(16px,env(safe-area-inset-right,0px));max-height:34%}
+  .legend.collapsed .rows,.legend.collapsed .story,.legend.collapsed .hint,.legend.collapsed .ramp,.legend.collapsed .ramp-lab{display:none}
+  .legend h2{margin:0;cursor:pointer;display:flex;justify-content:space-between}
+  .legend h2::after{content:"▴"}
+  .legend.collapsed h2::after{content:"▾"}
+  .legend:not(.collapsed) h2{margin-bottom:10px}
+  .legend{padding:10px 14px}
+  .year b{font-size:40px}
+  .brand h1{font-size:34px}
+  .card{top:calc(120px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));width:auto}
+  .brand p{display:none}
+  .nav-hint{display:none}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+</head>
+<body>
+<div class="haze" aria-hidden="true"></div>
+<div id="map" aria-label="Mapa 3D das edificações do centro de São Paulo"></div>
+<div class="ui loading" id="loading">carregando 68 mil edificações…</div>
+
+<header class="ui brand">
+  <h1><small data-i18n="kicker">Camadas</small>São Paulo</h1>
+  <div class="byline">
+    <span class="who"><span data-i18n="by">por</span> <a href="#" id="byline">Thais Adeodato</a></span>
+    <span class="social">
+      <a class="soc" href="https://www.linkedin.com/in/thais-morais-adeodato-porto/" target="_blank" rel="noopener" aria-label="LinkedIn de Thais Adeodato"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1" y="1" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4.6 6.8v4.6M4.6 4.7v.1M7.4 11.4V6.8m0 2.2c0-1.3.8-2.3 2-2.3s1.9.8 1.9 2.2v2.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span>LinkedIn</span></a>
+      <a class="soc" href="https://www.instagram.com/thais.adeodato/" target="_blank" rel="noopener" aria-label="Instagram de Thais Adeodato"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="11.7" cy="4.3" r=".8" fill="currentColor"/></svg><span>@thais.adeodato</span></a>
+    </span>
+  </div>
+  <p data-i18n="tagline">Cada edificação do centro, colorida pelo ano em que foi construída e situada na história que a formou.</p>
+</header>
+
+<nav class="ui modes" aria-label="Camadas">
+  <button data-mode="period" aria-pressed="true" data-i18n="m_period">Período</button>
+  <button data-mode="heritage" aria-pressed="false" data-i18n="m_heritage">Patrimônio</button>
+  <button data-mode="floors" aria-pressed="false" data-i18n="m_floors">Pavimentos</button>
+  <button data-mode="use" aria-pressed="false" data-i18n="m_use">Uso</button>
+  <button data-mode="quality" aria-pressed="false" data-i18n="m_quality">Qualidade dos dados</button>
+</nav>
+
+<div class="ui year">
+  <b id="yearBig">Hoje</b>
+  <span id="yearSub">68.684 edificações</span>
+  <div class="tools">
+    <button id="aboutBtn" data-i18n="about">Sobre e método</button>
+    <button id="lang-pt" aria-pressed="true">PT</button>
+    <button id="lang-en" aria-pressed="false">EN</button>
+  </div>
+</div>
+
+<aside class="ui legend" id="legend" aria-live="polite"></aside>
+<script>if(innerWidth<820)document.getElementById('legend').classList.add('collapsed');</script>
+<aside class="ui card" id="card" hidden></aside>
+
+<div class="ui timeline">
+  <button class="play" id="play" aria-label="Reproduzir linha do tempo">▶</button>
+  <div class="tl-wrap">
+    <span class="nav-hint" data-i18n="navhint">Arraste para girar · botão direito ou Shift para inclinar · role para aproximar</span>
+    <canvas id="hist" aria-label="Linha do tempo: arraste para escolher o ano"></canvas>
+    <div class="ticks" id="ticks"></div>
+  </div>
+</div>
+
+<div class="ui about" id="about" hidden>
+  <article>
+    <button class="close" id="aboutClose" aria-label="Fechar" style="position:absolute;top:10px;right:12px;font-size:22px;color:var(--muted)">×</button>
+    <div id="aboutBody"></div>
+  </article>
+</div>
+
+<script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
+<script>
+(function(){
+const PERIODS=[
+ {id:0,from:0,to:1929,color:[126,44,50],
+  pt:["Antes de 1930","Cidade do café","A ferrovia e o dinheiro do café transformam a vila colonial em capital. Chegam imigrantes italianos, espanhóis e portugueses; o Theatro Municipal abre em 1911 e o Martinelli, primeiro arranha-céu da cidade, fica pronto em 1929."],
+  en:["Before 1930","Coffee city","Railways and coffee money turn the colonial town into a capital. Italian, Spanish and Portuguese immigrants arrive; the Theatro Municipal opens in 1911 and the Martinelli, the city's first skyscraper, is finished in 1929."]},
+ {id:1,from:1930,to:1945,color:[184,90,62],
+  pt:["1930–1945","Plano de Avenidas","O Plano de Avenidas de Prestes Maia (1930) redesenha o centro com eixos radiais. Surgem o novo Viaduto do Chá, o Edifício Esther, primeiro grande prédio modernista, e a Biblioteca Mário de Andrade."],
+  en:["1930–1945","Avenues Plan","Prestes Maia's Avenues Plan (1930) redraws downtown around radial roads. The new Viaduto do Chá, the modernist Edifício Esther and the Mário de Andrade Library go up."]},
+ {id:2,from:1946,to:1964,color:[206,142,70],
+  pt:["1946–1964","Metrópole moderna","A cidade passa a crescer para cima. O IV Centenário (1954) celebra a metrópole industrial; o Copan, de Oscar Niemeyer, e o Edifício Itália mudam a silhueta do centro novo."],
+  en:["1946–1964","Modern metropolis","The city starts growing upward. The 400th anniversary (1954) celebrates the industrial metropolis; Niemeyer's Copan and the Edifício Itália reshape the skyline."]},
+ {id:3,from:1965,to:1984,color:[206,182,98],
+  pt:["1965–1984","Milagre e Minhocão","Anos do “milagre econômico” e da ditadura. O Elevado Costa e Silva, o Minhocão, corta o centro em 1971; a primeira linha do metrô abre em 1974. No cadastro, é o período com mais edificações, mas parte disso é um artefato: o ano 1970 aparece cerca de 12 vezes mais que os anos vizinhos (veja Qualidade dos dados)."],
+  en:["1965–1984","Boom and Minhocão","Years of the “economic miracle” and military rule. The Minhocão elevated highway slices through downtown in 1971; the first metro line opens in 1974. It is the largest period in the register, but partly as an artefact: the year 1970 appears about 12 times more often than neighbouring years (see Data quality)."]},
+ {id:4,from:1985,to:1999,color:[112,148,120],
+  pt:["1985–1999","Centro esvaziado","Com a redemocratização, sedes de empresas migram para a Paulista e a Faria Lima. O centro perde moradores e investimento; a Operação Urbana Centro (1997) tenta reverter isso."],
+  en:["1985–1999","Hollowed-out centre","After the return to democracy, headquarters move to Paulista and Faria Lima. Downtown loses residents and investment; the 1997 Centro urban operation tries to reverse it."]},
+ {id:5,from:2000,to:2013,color:[78,118,158],
+  pt:["2000–2013","Retomada","Equipamentos culturais como a Sala São Paulo, na Estação Júlio Prestes, e programas de requalificação trazem o centro de volta ao mapa. A construção volta, ainda em ritmo lento."],
+  en:["2000–2013","Comeback","Cultural venues such as Sala São Paulo, inside Júlio Prestes station, and renewal programmes bring downtown back. Construction returns, slowly."]},
+ {id:6,from:2014,to:2100,color:[118,94,150],
+  pt:["2014–hoje","Plano Diretor","O Plano Diretor de 2014 incentiva prédios altos perto do transporte público. O centro recebe uma onda de edifícios residenciais com apartamentos pequenos."],
+  en:["2014–today","Master Plan","The 2014 Master Plan rewards density near public transport. Downtown gets a wave of residential towers with small flats."]}
+];
+const UNKNOWN=[166,162,154];
+const Q_COLORS=[[176,182,188],[214,58,46],[236,160,44],[88,88,92],[124,92,196]];
+function qualOf(d){ if(d.est) return 4; if(!d.y) return 3; if(d.y===1970) return 1; if(d.y<1960&&d.y%5===4) return 2; return 0; }
+const LANDMARKS=[
+ {pos:[-46.63256,-23.54792],y:1554,pt:"Pátio do Colégio",en:"Pátio do Colégio",dpt:"Onde os jesuítas fundaram São Paulo em 1554. A igreja atual é uma reconstrução de 1979.",den:"Where Jesuits founded São Paulo in 1554. The current church is a 1979 reconstruction."},
+ {pos:[-46.63530,-23.53510],y:1901,pt:"Estação da Luz",en:"Luz Station",dpt:"Estação ferroviária inaugurada em 1901, porta de entrada do café e dos imigrantes.",den:"Railway station opened in 1901, the gateway for coffee and immigrants."},
+ {pos:[-46.63871,-23.54538],y:1911,pt:"Theatro Municipal",en:"Theatro Municipal",dpt:"Inaugurado em 1911; palco da Semana de Arte Moderna de 1922.",den:"Opened in 1911; stage of the 1922 Modern Art Week."},
+ {pos:[-46.63517,-23.54553],y:1929,pt:"Edifício Martinelli",en:"Martinelli Building",dpt:"Primeiro arranha-céu de São Paulo, concluído em 1929.",den:"São Paulo's first skyscraper, finished in 1929."},
+ {pos:[-46.64268,-23.54463],y:1938,pt:"Edifício Esther",en:"Edifício Esther",dpt:"Um dos primeiros prédios modernistas da cidade, na Praça da República (1938).",den:"One of the city's first modernist buildings, on Praça da República (1938)."},
+ {pos:[-46.64051,-23.53330],y:1938,pt:"Estação Júlio Prestes",en:"Júlio Prestes Station",dpt:"Estação de 1938 que hoje abriga a Sala São Paulo.",den:"1938 station that now houses Sala São Paulo."},
+ {pos:[-46.63406,-23.54578],y:1947,pt:"Edifício Altino Arantes",en:"Altino Arantes Building",dpt:"O antigo Banespa, de 1947, hoje Farol Santander.",den:"The former Banespa tower (1947), now Farol Santander."},
+ {pos:[-46.63429,-23.55110],y:1954,pt:"Catedral da Sé",en:"Sé Cathedral",dpt:"Inaugurada no IV Centenário, em 1954; as torres só ficaram prontas em 1967.",den:"Consecrated for the 400th anniversary in 1954; its spires were finished in 1967."},
+ {pos:[-46.64330,-23.54560],y:1965,pt:"Edifício Itália",en:"Edifício Itália",dpt:"Com 46 andares, foi o prédio mais alto da cidade por décadas (1965).",den:"At 46 floors, the city's tallest building for decades (1965)."},
+ {pos:[-46.64436,-23.54664],y:1966,pt:"Copan",en:"Copan",dpt:"Projeto de Oscar Niemeyer de 1951, concluído em 1966; cerca de 1.160 apartamentos.",den:"Oscar Niemeyer's 1951 design, finished in 1966; about 1,160 flats."},
+ {pos:[-46.64900,-23.54180],y:1971,pt:"Minhocão",en:"Minhocão",dpt:"Via elevada aberta em 1971 sobre a Av. Amaral Gurgel e a São João.",den:"Elevated highway opened in 1971 above Amaral Gurgel and São João avenues."}
+];
+const I18N={
+ pt:{kicker:"Camadas",tagline:"Cada edificação do centro, colorida pelo ano em que foi construída e situada na história que a formou.",m_period:"Período",m_heritage:"Patrimônio",m_floors:"Pavimentos",m_use:"Uso",m_quality:"Qualidade dos dados",about:"Sobre e método",contact:"Contato",by:"por",today:"Hoje",bld:"edificações",standing:"de pé em",
+  navhint:"Arraste para girar · botão direito ou Shift para inclinar · role para aproximar",builtin:"Construída em",unknown:"Sem ano no IPTU",unk_note:"Em geral imóveis públicos ou isentos de IPTU.",
+  clickp:"Clique num período para destacá-lo. Clique numa edificação para ver os detalhes.",floors:"Pavimentos",height:"Altura",use:"Uso",std:"Padrão",units:"Unidades",bairro:"Bairro",addr:"Endereço",built_range:"Unidades construídas entre",
+  her_title:"Patrimônio tombado",her_yes:"Tombado (Conpresp, Condephaat ou Iphan)",her_no:"Sem tombamento",her_note:"Inclui imóveis isolados e os que estão dentro de áreas e bairros tombados.",
+  fl_title:"Número de pavimentos",use_title:"Uso predominante",tomb:"Tombamento",level:"esfera",res:"Resolução",mun:"municipal",est:"estadual",fed:"federal",est_lot:"Volume estimado a partir do lote (prédio mais novo que o levantamento das edificações).",landmark:"Marco",close:"Fechar",
+  uses:["Residencial","Comércio e serviços","Misto","Escritórios","Indústria e galpões","Institucional e outros"]},
+ en:{kicker:"Layers",tagline:"Every downtown building, coloured by the year it was built and placed in the history that shaped it.",m_period:"Period",m_heritage:"Heritage",m_floors:"Floors",m_use:"Use",m_quality:"Data quality",about:"About & method",contact:"Contact",by:"by",today:"Today",bld:"buildings",standing:"standing in",
+  navhint:"Drag to rotate · right-click or Shift to tilt · scroll to zoom",builtin:"Built in",unknown:"No year in tax records",unk_note:"Usually public or tax-exempt property.",
+  clickp:"Click a period to highlight it. Click a building for details.",floors:"Floors",height:"Height",use:"Use",std:"Standard",units:"Units",bairro:"Neighbourhood",addr:"Address",built_range:"Units built between",
+  her_title:"Listed heritage",her_yes:"Listed (Conpresp, Condephaat or Iphan)",her_no:"Not listed",her_note:"Includes individual buildings and those inside listed areas and districts.",
+  fl_title:"Number of floors",use_title:"Main use",tomb:"Listing",level:"level",res:"Resolution",mun:"municipal",est:"state",fed:"federal",est_lot:"Volume estimated from the plot (building newer than the footprint survey).",landmark:"Landmark",close:"Close",
+  uses:["Residential","Retail and services","Mixed","Offices","Industry and warehouses","Institutional and other"]}
+};
+const USE_COLORS=[[217,164,65],[200,72,52],[150,96,160],[60,120,170],[110,110,100],[90,150,120]];
+const FLOOR_STOPS=[[1,[238,226,196]],[3,[233,184,110]],[8,[214,110,60]],[15,[160,50,60]],[30,[80,30,90]]];
+
+let lang='pt', mode='period', selPeriod=null, cutoff=2100, data=null, B=[], deckgl=null, picked=null;
+try{ const s=localStorage.getItem('camadas-lang'); if(s==='en'||s==='pt') lang=s; }catch(e){}
+const T=k=>I18N[lang][k];
+const fmt=n=>n.toLocaleString(lang==='pt'?'pt-BR':'en-US');
+const periodOf=y=>y?PERIODS.find(p=>y>=p.from&&y<=p.to):null;
+function useGroup(u){ u=(u||'').toLowerCase();
+  if(/ind[uú]stri|armaz|galp|dep[oó]sito|oficina/.test(u)) return 4;
+  if(/misto|loja e resid|resid[eê]ncia e outro/.test(u)) return 2;
+  if(/escrit|consult/.test(u)) return 3;
+  if(/resid|apartamento|cortiço/.test(u)) return 0;
+  if(/loja|comerc|hotel|garagem|posto|servi/.test(u)) return 1;
+  return 5; }
+function floorColor(f){ if(!f) return UNKNOWN; for(let i=1;i<FLOOR_STOPS.length;i++){ const [a,ca]=FLOOR_STOPS[i-1],[b,cb]=FLOOR_STOPS[i]; if(f<=b){const t=(f-a)/(b-a); return ca.map((v,j)=>Math.round(v+(cb[j]-v)*Math.max(0,t)));} } return FLOOR_STOPS[FLOOR_STOPS.length-1][1]; }
+
+let KX=1,KY=1,LON0=0,LAT0=0;
+function toLL(x,y){ return [LON0+x/KX, LAT0+y/KY]; }
+function decode(rings){ return rings.map(r=>{ const out=[]; let x=0,y=0; for(let i=0;i<r.length;i+=2){ x+=r[i]; y+=r[i+1]; out.push(toLL(x/data.scale,y/data.scale)); } return out; }); }
+
+async function load(){
+  const res=await fetch('data.json'); let buf=new Uint8Array(await res.arrayBuffer());
+  let txt;
+  if(buf[0]===0x1f&&buf[1]===0x8b){ const ds=new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip')); txt=await new Response(ds).text(); }
+  else txt=new TextDecoder().decode(buf);
+  data=JSON.parse(txt);
+  LON0=data.origin[0]; LAT0=data.origin[1]; KY=Math.PI/180*6378137; KX=Math.cos(LAT0*Math.PI/180)*KY;
+  const useG=data.uso.map(useGroup);
+  for(const b of data.b){
+    const [pg,h,y0,y1,pav,addr,uso,pad,bairro,n,tomb,est]=b;
+    for(const poly of pg){ B.push({q:0,poly:decode(poly),h,y:y0,y1,pav,addr,uso,ug:useG[uso],pad,bairro,n,tomb,est,per:periodOf(y0)}); }
+  }
+  for(const d of B) d.q=qualOf(d);
+  data.quadP=data.quad.flatMap(q=>q.map(decode));
+  data.distP=data.dist.map(([n,pg])=>({n,paths:pg.map(p=>decode(p)[0])}));
+  document.getElementById('loading').hidden=true;
+  init();
+}
+
+function colorFor(d){
+  let c;
+  if(mode==='period') c=d.per?d.per.color:UNKNOWN;
+  else if(mode==='heritage') c=d.tomb>=0?[200,64,42]:[205,201,192];
+  else if(mode==='floors') c=floorColor(d.pav);
+  else if(mode==='quality') c=Q_COLORS[d.q];
+  else c=USE_COLORS[d.ug];
+  let a=255;
+  if(mode==='period'&&selPeriod!==null&&(!d.per||d.per.id!==selPeriod)) { a=40; }
+  if(picked&&d===picked) return [255,255,255,255];
+  return [c[0],c[1],c[2],a];
+}
+const isDark=()=>{ const t=document.documentElement.getAttribute('data-theme'); return t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches; };
+function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function hex(h){ h=h.replace('#',''); return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)); }
+
+function layers(){
+  const O=data.origin, CS=deck.COORDINATE_SYSTEM.METER_OFFSETS;
+  const dark=isDark(); const blockC=hex(css('--block')||'#f6f4ef'); const lineC=hex(css('--muted')||'#6c6a64');
+  return [
+    new deck.SolidPolygonLayer({id:'ground',data:[[toLL(-6000,-6000),toLL(6000,-6000),toLL(6000,6000),toLL(-6000,6000)]],getPolygon:d=>d,getFillColor:[...hex(css('--ground')||'#e7e1d6')],material:{ambient:1,diffuse:.2,shininess:0,specularColor:[0,0,0]},shadowEnabled:true,parameters:{depthMask:false},updateTriggers:{getFillColor:[dark]}}),
+    new deck.SolidPolygonLayer({id:'quad',data:data.quadP,getPolygon:d=>d,getFillColor:blockC,material:{ambient:.9,diffuse:.25,shininess:0,specularColor:[0,0,0]},shadowEnabled:true,updateTriggers:{getFillColor:[dark]}}),
+    new deck.PathLayer({id:'dist',data:data.distP.flatMap(d=>d.paths),getPath:d=>d,getColor:[...lineC,110],getWidth:1.2,widthUnits:'pixels',updateTriggers:{getColor:[dark]}}),
+    new deck.SolidPolygonLayer({id:'b',data:B,extruded:true,pickable:true,
+      getPolygon:d=>d.poly,getElevation:d=>d.h,getFillColor:colorFor,
+      material:{ambient:.5,diffuse:.6,shininess:12,specularColor:[30,28,24]},
+      getFilterValue:d=>d.y||1800,filterRange:[0,cutoff],extensions:[new deck.DataFilterExtension({filterSize:1})],
+      updateTriggers:{getFillColor:[mode,selPeriod,picked]}}),
+    new deck.ScatterplotLayer({id:'lm',data:LANDMARKS.filter(l=>l.y<=cutoff||cutoff>=2100),getPosition:d=>[d.pos[0],d.pos[1],0],getRadius:7,radiusUnits:'pixels',parameters:{depthTest:false},getFillColor:hex(css('--accent')||'#c8402a'),stroked:true,getLineColor:[255,255,255],lineWidthUnits:'pixels',getLineWidth:2,pickable:true,updateTriggers:{getFillColor:[dark]}}),
+    new deck.TextLayer({id:'lmt',data:LANDMARKS.filter(l=>l.y<=cutoff||cutoff>=2100),getPosition:d=>[d.pos[0],d.pos[1],0],parameters:{depthTest:false},getText:d=>d[lang],getSize:12,getColor:dark?[236,235,231]:[29,31,34],getPixelOffset:[10,0],getTextAnchor:'start',getAlignmentBaseline:'center',fontFamily:'IBM Plex Sans, system-ui, sans-serif',fontWeight:600,characterSet:'auto',outlineWidth:3,outlineColor:dark?[18,19,21,220]:[243,239,231,230],fontSettings:{sdf:true},updateTriggers:{getText:[lang],getColor:[dark],outlineColor:[dark]}}),
+    new deck.TextLayer({id:'dl',data:data.distLabels,getPosition:d=>[...toLL(d[1],d[2]),160],parameters:{depthTest:false},getText:d=>d[0],getSize:11,getColor:[...lineC,200],fontFamily:'IBM Plex Mono, monospace',characterSet:'auto',updateTriggers:{getColor:[dark]}})
+  ];
+}
+function refresh(){ deckgl&&deckgl.setProps({layers:layers()}); }
+const DESKTOP=matchMedia('(min-width: 900px) and (pointer: fine)').matches;
+let shadowsOn=false; /* sombras projetadas desativadas: o efeito experimental do deck.gl lavava as cores das fachadas */
+function makeEffects(shadow){
+  const dark=isDark();
+  const amb=new deck.AmbientLight({color:dark?[200,205,225]:[255,248,238],intensity:dark?.95:1.0});
+  const sun=new deck.DirectionalLight({color:dark?[255,226,196]:[255,236,212],intensity:dark?1.2:1.45,direction:[-3,-6,-4],_shadow:shadow});
+  const fill=new deck.DirectionalLight({color:[200,214,240],intensity:.22,direction:[4,3,-2]});
+  const fx=new deck.LightingEffect({amb,sun,fill});
+  if(shadow) fx.shadowColor=dark?[0,0,0,.55]:[38,30,24,.28];
+  return [fx];
+}
+function setShadows(on){ shadowsOn=on; deckgl&&deckgl.setProps({effects:makeEffects(on)}); }
+
+function renderLegend(){
+  const el=document.getElementById('legend'); const vis=B.filter(d=>(d.y||1800)<=cutoff);
+  let h='';
+  if(mode==='period'){
+    const cnt=PERIODS.map(p=>vis.filter(d=>d.per===p).length), unk=vis.filter(d=>!d.per).length;
+    h+=`<h2>${lang==='pt'?'Construído em':'Built in'}</h2><div class="rows">`+PERIODS.map((p,i)=>`<button class="row" data-p="${p.id}" aria-pressed="${selPeriod===p.id}"><i style="background:rgb(${p.color})"></i><span>${p[lang][0]} · ${p[lang][1]}</span><em>${fmt(cnt[i])}</em></button>`).join('')+
+      `<div class="row" style="cursor:default"><i style="background:rgb(${UNKNOWN})"></i><span>${T('unknown')}</span><em>${fmt(unk)}</em></div></div>`;
+    const p=selPeriod!==null?PERIODS[selPeriod]:null;
+    h+= p?`<div class="story"><strong>${p[lang][1]}</strong>${p[lang][2]}</div>`:`<p class="hint">${T('clickp')}</p>`;
+  } else if(mode==='heritage'){
+    const y=vis.filter(d=>d.tomb>=0).length;
+    h+=`<h2>${T('her_title')}</h2><div class="rows"><div class="row"><i style="background:rgb(200,64,42)"></i><span>${T('her_yes')}</span><em>${fmt(y)}</em></div><div class="row"><i style="background:rgb(205,201,192)"></i><span>${T('her_no')}</span><em>${fmt(vis.length-y)}</em></div></div><p class="hint">${T('her_note')}</p>`;
+  } else if(mode==='floors'){
+    h+=`<h2>${T('fl_title')}</h2><div class="ramp" style="background:linear-gradient(90deg,${FLOOR_STOPS.map(s=>`rgb(${s[1]})`).join(',')})"></div><div class="ramp-lab"><span>1</span><span>3</span><span>8</span><span>15</span><span>30+</span></div>`;
+    const tall=vis.filter(d=>d.pav>=20).length; h+=`<p class="hint">${fmt(tall)} ${lang==='pt'?'edificações com 20 pavimentos ou mais.':'buildings with 20 floors or more.'}</p>`;
+  } else if(mode==='quality'){
+    const c=[0,0,0,0,0]; vis.forEach(d=>c[d.q]++);
+    const yc=y=>B.filter(d=>d.y===y).length; const y70=yc(1970), nb=Math.round((yc(1969)+yc(1971))/2);
+    const old=B.filter(d=>d.y&&d.y>=1930&&d.y<1960&&!d.est), oldR=old.filter(d=>d.y%5===4).length/Math.max(1,old.length);
+    const lb=lang==='pt'?['Ano provavelmente preciso','1970: provável valor padrão','Ano em faixa de 5 anos (antes de 1960)','Sem ano no IPTU','Volume estimado pelo lote']:['Year probably precise','1970: likely default value','Year in 5-year band (before 1960)','No year in tax records','Volume estimated from plot'];
+    h+=`<h2>${T('m_quality')}</h2><div class="rows">`+[1,2,3,4,0].map(i=>`<div class="row"><i style="background:rgb(${Q_COLORS[i]})"></i><span>${lb[i]}</span><em>${fmt(c[i])}</em></div>`).join('')+`</div>`;
+    const pct=v=>(v*100).toLocaleString(lang==='pt'?'pt-BR':'en-US',{maximumFractionDigits:0})+'%';
+    h+= lang==='pt'?`<div class="story"><strong>O pico de 1970</strong>${fmt(y70)} edificações têm o ano 1970, contra uma média de ${fmt(nb)} em 1969 e 1971. É cerca de ${Math.round(y70/nb)} vezes mais. O padrão sugere um valor usado quando a data real não era conhecida, não um surto de obras.</div>
+      <div class="story"><strong>Anos em faixas de 5</strong>Entre 1930 e 1959, ${pct(oldR)} dos anos terminam em 4 ou 9. Se as datas fossem exatas, seriam cerca de 20%. O “ano de construção corrigido” do IPTU parece agrupar prédios antigos em faixas de 5 anos (1939, 1944, 1949…).</div>
+      <p class="hint">Na linha do tempo, as barras vermelha e âmbar mostram esses anos. Leia as datas antigas como aproximações de ±5 anos.</p>`
+      :`<div class="story"><strong>The 1970 spike</strong>${fmt(y70)} buildings carry the year 1970, against an average of ${fmt(nb)} in 1969 and 1971, about ${Math.round(y70/nb)} times more. The pattern points to a fallback value used when the real date was unknown, not a construction boom.</div>
+      <div class="story"><strong>Years in 5-year bands</strong>Between 1930 and 1959, ${pct(oldR)} of years end in 4 or 9. With exact dates, it would be about 20%. The register's “corrected construction year” seems to group older buildings into 5-year bands (1939, 1944, 1949…).</div>
+      <p class="hint">On the timeline, red and amber bars mark these years. Read older dates as ±5-year approximations.</p>`;
+  } else {
+    const cnt=[0,0,0,0,0,0]; vis.forEach(d=>cnt[d.ug]++);
+    h+=`<h2>${T('use_title')}</h2><div class="rows">`+T('uses').map((u,i)=>`<div class="row"><i style="background:rgb(${USE_COLORS[i]})"></i><span>${u}</span><em>${fmt(cnt[i])}</em></div>`).join('')+`</div>`;
+  }
+  el.innerHTML=h;
+  const hd=el.querySelector('h2'); if(hd){ hd.setAttribute('role','button'); hd.tabIndex=0; hd.onclick=()=>el.classList.toggle('collapsed'); hd.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.classList.toggle('collapsed');}}; }
+  el.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ const id=+b.dataset.p; selPeriod=selPeriod===id?null:id; renderLegend(); refresh(); });
+}
+
+function showCard(d){
+  const el=document.getElementById('card'); if(!d){el.hidden=true;return;}
+  const p=d.per; const tb=d.tomb>=0?data.tomb[d.tomb]:null;
+  const lv=tb?[tb[2]&&`${T('mun')} ${tb[2]}`,tb[3]&&`${T('est')} ${tb[3]}`,tb[4]&&`${T('fed')} ${tb[4]}`].filter(Boolean).join(' · '):'';
+  el.innerHTML=`<button class="close" aria-label="${T('close')}">×</button>
+   <div class="yr">${d.y||'—'}</div>
+   <span class="per" style="--pc:rgb(${p?p.color:UNKNOWN})">${p?p[lang][0]+' · '+p[lang][1]:T('unknown')}</span>
+   ${d.y?`<div class="mini">${PERIODS.map(q=>`<span style="background:rgb(${q.color});flex:${Math.min(q.to,2026)-Math.max(q.from,1880)+1}"></span>`).join('')}<b style="left:calc(${((d.y-1880)/(2026-1880)*100).toFixed(1)}% - 1px)"></b></div><div class="mini-lab"><span>1880</span><span>1950</span><span>2026</span></div>`:''}
+   <h3>${esc(d.addr||'—')}</h3>
+   <dl>
+     ${d.y1&&d.y1!==d.y?`<dt>${T('built_range')}</dt><dd>${d.y}–${d.y1}</dd>`:''}
+     <dt>${T('floors')}</dt><dd>${d.pav||'—'}</dd>
+     <dt>${T('height')}</dt><dd>${d.h.toLocaleString(lang==='pt'?'pt-BR':'en-US',{maximumFractionDigits:0})} m</dd>
+     <dt>${T('use')}</dt><dd>${esc(data.uso[d.uso]||'—')}</dd>
+     <dt>${T('std')}</dt><dd>${esc(data.padrao[d.pad]||'—')}</dd>
+     ${d.n>1?`<dt>${T('units')}</dt><dd>${fmt(d.n)}</dd>`:''}
+     ${d.bairro&&!/^(COND|ED |EDIF)/i.test(d.bairro)?`<dt>${T('bairro')}</dt><dd>${esc(d.bairro)}</dd>`:''}
+   </dl>
+   ${!d.y?`<p class="hint">${T('unk_note')}</p>`:''}
+   ${d.est?`<p class="hint">${T('est_lot')}</p>`:''}
+   ${tb?`<div class="tb"><b>${T('tomb')}:</b> ${esc(tb[0])}${lv?`<br>${lv}`:''}${tb[6]?`<br><a href="${encodeURI(tb[6])}" target="_blank" rel="noopener">${T('res')} ↗</a>`:''}</div>`:''}`;
+  el.hidden=false; el.querySelector('.close').onclick=()=>{picked=null;showCard(null);refresh();};
+}
+function showLandmark(l){
+  const el=document.getElementById('card'); const p=periodOf(l.y)||PERIODS[0];
+  el.innerHTML=`<button class="close" aria-label="${T('close')}">×</button><div class="yr">${l.y}</div><span class="per" style="--pc:rgb(${p.color})">${T('landmark')}</span><h3>${l[lang]}</h3><p style="margin:0;font-size:13.5px;line-height:1.5">${lang==='pt'?l.dpt:l.den}</p>`;
+  el.hidden=false; el.querySelector('.close').onclick=()=>{el.hidden=true;};
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* timeline */
+const Y0=1880,Y1=2026; let hist=null;
+function drawHist(){
+  const cv=document.getElementById('hist'); const dpr=devicePixelRatio||1; const w=cv.clientWidth,h=cv.clientHeight; cv.width=w*dpr; cv.height=h*dpr;
+  const g=cv.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,w,h);
+  if(!hist){ hist=new Array(Y1-Y0+1).fill(0); for(const d of B){ if(d.y) hist[Math.min(Y1,Math.max(Y0,d.y))-Y0]++; } }
+  const max=Math.max(...hist.slice(1)); const bw=w/hist.length;
+  hist.forEach((v,i)=>{ const y=Y0+i, p=periodOf(y); const bh=Math.max(v?1.5:0,Math.sqrt(v/max)*(h-6)); const on=y<=cutoff;
+    const qc=mode==='quality'?(y===1970?Q_COLORS[1]:(y<1960&&y%5===4?Q_COLORS[2]:Q_COLORS[0])):p.color; g.fillStyle=`rgba(${qc},${on?1:.22})`; g.fillRect(i*bw,h-bh,Math.max(1,bw-0.6),bh); });
+  if(cutoff<2100){ const x=(cutoff-Y0+.5)*bw; g.fillStyle=css('--ink'); g.fillRect(x-1,0,2,h); }
+}
+function ticks(){ const t=[1880,1900,1920,1940,1960,1980,2000,2020]; document.getElementById('ticks').innerHTML=t.map(v=>`<span>${v}</span>`).join(''); }
+function setCutoff(y){ cutoff=y; const big=document.getElementById('yearBig'); big.textContent=y>=2100?T('today'):y;
+  const n=B.filter(d=>(d.y||1800)<=y && (y>=2100||d.y)).length;
+  document.getElementById('yearSub').textContent=`${fmt(y>=2100?B.length:n)} ${T('bld')}`;
+  drawHist(); renderLegend(); refresh(); }
+let playing=null;
+function play(){ const btn=document.getElementById('play');
+  if(playing){ clearInterval(playing); playing=null; btn.textContent='▶';  return; }
+  let y=cutoff>=2100||cutoff>=Y1?1890:cutoff; btn.textContent='❚❚'; 
+  playing=setInterval(()=>{ y+=1; if(y>Y1){ clearInterval(playing); playing=null; btn.textContent='▶';  setCutoff(2100); return; } setCutoff(y); },110); }
+function scrub(e){ const cv=document.getElementById('hist'); const r=cv.getBoundingClientRect(); const t=(e.clientX-r.left)/r.width; let y=Math.round(Y0+t*(Y1-Y0)); if(y>=Y1) y=2100; setCutoff(Math.max(Y0,y)); }
+
+const ABOUT={
+pt:{tabs:[["metodo","Como foi feito"],["cobertura","O que cobre"],["fontes","Fontes"],["contato","Contato"]],
+metodo:`<h2>Como foi feito</h2>
+<p>O mapa cruza duas bases públicas da Prefeitura de São Paulo: a geometria das edificações e o cadastro do IPTU, que traz o ano de construção de cada imóvel.</p>
+<ol class="steps">
+<li><b>Recorte.</b> Escolha dos dez distritos do centro histórico e expandido próximo: Sé, República, Bela Vista, Consolação, Santa Cecília, Bom Retiro, Brás, Pari, Liberdade e Cambuci.</li>
+<li><b>Geometria.</b> Download, pelo serviço WFS do GeoSampa, dos contornos de 104.525 edificações (com altura), 72.443 lotes fiscais, quadras, limites dos distritos e 4.795 bens tombados.</li>
+<li><b>Atributos.</b> Download do cadastro do IPTU 2026, com 3,9 milhões de linhas, e filtro dos setores fiscais do centro. Os dados foram agregados por lote: ano de construção (o mais antigo entre as unidades), número de pavimentos, área construída, uso e padrão.</li>
+<li><b>Junção.</b> Lotes e IPTU foram ligados pelo código fiscal (setor, quadra e lote; nos condomínios, setor, quadra e número do condomínio). 96% dos lotes do recorte encontraram correspondência.</li>
+<li><b>Edificação ↔ lote.</b> Cada edificação recebeu os dados do lote onde está o seu centro (junção espacial). 97% das 68.684 edificações dentro dos distritos ficaram com ano.</li>
+<li><b>Prédios novos.</b> O levantamento das edificações é anterior a muitas obras recentes. Em 935 casos com prédio de 2008 ou depois e pelo menos 4 pavimentos, mais alto que o contorno antigo, o volume foi estimado pelo próprio lote, com 3 m por pavimento.</li>
+<li><b>Patrimônio.</b> Edificações dentro de polígonos tombados (Conpresp, Condephaat ou Iphan) foram marcadas, com link para a resolução.</li>
+<li><b>Verificação.</b> Conferência de marcos conhecidos (Copan, Altino Arantes, Martinelli) e análise da distribuição dos anos, que revelou o pico de 1970 e o arredondamento em faixas de 5 anos (veja a aba Qualidade dos dados).</li>
+<li><b>Visualização.</b> Os dados foram compactados (coordenadas em metros, precisão de 20 cm) e desenhados em 3D com deck.gl, junto com a linha do tempo, as legendas e os textos históricos.</li>
+</ol>
+<p class="note">Ferramentas: Python (GeoPandas, Shapely, pyproj) para o processamento e JavaScript (deck.gl) para o mapa. O projeto foi desenvolvido com apoio de IA (Claude); as escolhas de fonte, recorte, validação e interpretação são da autora.</p>`,
+cobertura:`<h2>O que cobre e o que não cobre</h2>
+<h3>Cobre</h3><ul>
+<li>As 68.684 edificações levantadas pelo GeoSampa nos dez distritos do centro.</li>
+<li>Ano de construção, pavimentos, uso, padrão e número de unidades segundo o IPTU 2026.</li>
+<li>Patrimônio tombado nas esferas municipal, estadual e federal.</li>
+<li>Sete períodos da história urbana do centro e 11 marcos de referência.</li></ul>
+<h3>Não cobre</h3><ul>
+<li>O restante da cidade. A mesma metodologia pode ser aplicada a outros distritos.</li>
+<li>Edificações demolidas: o mapa mostra o que está de pé hoje, não o que existiu.</li>
+<li>Datas exatas de inauguração. O IPTU usa o “ano de construção corrigido”, que pode mudar com reformas, aparece arredondado em faixas de 5 anos antes de 1960 e concentra um número anormal de casos em 1970.</li>
+<li>Cerca de 2 mil edificações sem ano no IPTU, em geral públicas ou isentas.</li>
+<li>Prédios muito recentes que ainda não estão no cadastro, e formas exatas de prédios novos (estimadas pelo lote).</li>
+<li>Uso real do imóvel (vacância, ocupações, cortiços): o uso mostrado é o declarado ao fisco.</li></ul>`,
+fontes:`<h2>Fontes dos dados</h2><ul>
+<li><b>Edificações, lotes, quadras, distritos, bens tombados:</b> <a href="https://geosampa.prefeitura.sp.gov.br" target="_blank" rel="noopener">GeoSampa</a>, Prefeitura de São Paulo (SMUL/Prodam), serviço WFS. Baixados em 14/10/2026.</li>
+<li><b>IPTU 2026:</b> cadastro imobiliário fiscal da Secretaria Municipal da Fazenda, publicado no <a href="https://novogeosampa.prefeitura.sp.gov.br" target="_blank" rel="noopener">GeoSampa</a> conforme o <a href="https://prefeitura.sp.gov.br/web/licenciamento/w/disponibiliza%C3%A7%C3%A3o-do-cadastro-fiscal" target="_blank" rel="noopener">Decreto nº 56.701/2015</a>. <a href="https://metadados.geosampa.prefeitura.sp.gov.br/geonetwork/srv/api/records/b971efa1-aad5-42f3-ad28-18f1f4efe270" target="_blank" rel="noopener">Metadados</a>.</li>
+<li><b>Patrimônio:</b> camada de bens tombados do GeoSampa (DPH/SMC), com resoluções do Conpresp, Condephaat e Iphan.</li>
+<li><b>Textos históricos e marcos:</b> textos próprios, com datas amplamente documentadas.</li>
+<li><b>Inspiração:</b> <a href="https://stop-token.com/lab/amsterdam/" target="_blank" rel="noopener">LAYRS: Amsterdam</a>, de Alex Barakov, inspirado em <i>Paris, building by building</i>, de Sasha Bogachev.</li></ul>
+<p class="note">Projeto não comercial, feito por curiosidade e para ensino.</p>`,
+contato:`<h2>Contato</h2>
+<p>Este mapa foi feito por <b>Thais Adeodato</b>, arquiteta e urbanista que trabalha com governança de dados. Sugestões, correções e histórias sobre os prédios do centro são bem-vindas.</p>
+<div class="contacts">
+<a class="cbtn" href="https://www.linkedin.com/in/thais-morais-adeodato-porto/" target="_blank" rel="noopener"><span>LinkedIn</span><small>linkedin.com/in/thais-morais-adeodato-porto</small></a>
+<a class="cbtn" href="https://www.instagram.com/thais.adeodato/" target="_blank" rel="noopener"><span>Instagram</span><small>@thais.adeodato</small></a>
+</div>`},
+en:{tabs:[["metodo","How it was made"],["cobertura","Coverage"],["fontes","Sources"],["contato","Contact"]],
+metodo:`<h2>How it was made</h2>
+<p>The map joins two public datasets from the City of São Paulo: building geometry and the property-tax (IPTU) register, which records each property's construction year.</p>
+<ol class="steps">
+<li><b>Area.</b> Ten historic downtown districts: Sé, República, Bela Vista, Consolação, Santa Cecília, Bom Retiro, Brás, Pari, Liberdade and Cambuci.</li>
+<li><b>Geometry.</b> From GeoSampa's WFS service: footprints of 104,525 buildings (with height), 72,443 tax plots, blocks, district boundaries and 4,795 listed heritage items.</li>
+<li><b>Attributes.</b> The 2026 IPTU register, 3.9 million rows, filtered to downtown tax sectors and aggregated per plot: construction year (oldest unit), floors, built area, use and building standard.</li>
+<li><b>Join.</b> Plots and tax records were linked by fiscal code (sector, block and plot; for condominiums, sector, block and condominium number). 96% of plots matched.</li>
+<li><b>Building ↔ plot.</b> Each building takes the data of the plot containing its centre (spatial join). 97% of the 68,684 buildings inside the districts got a year.</li>
+<li><b>New buildings.</b> The footprint survey predates many recent projects. In 935 cases with a 2008+ building of 4 or more floors taller than the old footprint, the volume was estimated from the plot itself at 3 m per floor.</li>
+<li><b>Heritage.</b> Buildings inside listed polygons (Conpresp, Condephaat or Iphan) were flagged, with a link to the resolution.</li>
+<li><b>Checks.</b> Known landmarks (Copan, Altino Arantes, Martinelli) were checked, and the year distribution was analysed, revealing the 1970 spike and 5-year rounding (see the Data quality tab).</li>
+<li><b>Visualisation.</b> Data was compacted (metre coordinates, 20 cm precision) and drawn in 3D with deck.gl, with the timeline, legends and historical texts.</li>
+</ol>
+<p class="note">Tools: Python (GeoPandas, Shapely, pyproj) for processing and JavaScript (deck.gl) for the map. Built with AI assistance (Claude); source choice, scope, validation and interpretation are the author's.</p>`,
+cobertura:`<h2>What it covers and what it doesn't</h2>
+<h3>Covers</h3><ul>
+<li>The 68,684 buildings surveyed by GeoSampa in ten downtown districts.</li>
+<li>Construction year, floors, use, building standard and unit count from the 2026 IPTU register.</li>
+<li>Listed heritage at municipal, state and federal level.</li>
+<li>Seven periods of downtown's urban history and 11 reference landmarks.</li></ul>
+<h3>Doesn't cover</h3><ul>
+<li>The rest of the city. The same method can be applied to other districts.</li>
+<li>Demolished buildings: the map shows what stands today, not what existed.</li>
+<li>Exact opening dates. The register's “corrected construction year” can change after renovations, is rounded into 5-year bands before 1960 and has an abnormal cluster at 1970.</li>
+<li>About 2,000 buildings with no year, usually public or tax-exempt.</li>
+<li>Very recent buildings not yet in the register, and exact shapes of new buildings (estimated from plots).</li>
+<li>Actual occupancy (vacancy, squats, tenements): the use shown is the one declared for tax purposes.</li></ul>`,
+fontes:`<h2>Data sources</h2><ul>
+<li><b>Buildings, plots, blocks, districts, heritage:</b> <a href="https://geosampa.prefeitura.sp.gov.br" target="_blank" rel="noopener">GeoSampa</a>, City of São Paulo (SMUL/Prodam), WFS service. Downloaded 14 Oct 2026.</li>
+<li><b>IPTU 2026:</b> municipal property-tax register (Finance Department), published on <a href="https://novogeosampa.prefeitura.sp.gov.br" target="_blank" rel="noopener">GeoSampa</a> under <a href="https://prefeitura.sp.gov.br/web/licenciamento/w/disponibiliza%C3%A7%C3%A3o-do-cadastro-fiscal" target="_blank" rel="noopener">Decree 56,701/2015</a>. <a href="https://metadados.geosampa.prefeitura.sp.gov.br/geonetwork/srv/api/records/b971efa1-aad5-42f3-ad28-18f1f4efe270" target="_blank" rel="noopener">Metadata</a>.</li>
+<li><b>Heritage:</b> GeoSampa listed-heritage layer (DPH/SMC), with Conpresp, Condephaat and Iphan resolutions.</li>
+<li><b>Historical texts and landmarks:</b> original texts with widely documented dates.</li>
+<li><b>Inspiration:</b> <a href="https://stop-token.com/lab/amsterdam/" target="_blank" rel="noopener">LAYRS: Amsterdam</a> by Alex Barakov, inspired by Sasha Bogachev's <i>Paris, building by building</i>.</li></ul>
+<p class="note">A non-commercial project, made out of curiosity and for teaching.</p>`,
+contato:`<h2>Contact</h2>
+<p>This map was made by <b>Thais Adeodato</b>, an architect and urban planner working in data governance. Suggestions, corrections and stories about downtown buildings are welcome.</p>
+<div class="contacts">
+<a class="cbtn" href="https://www.linkedin.com/in/thais-morais-adeodato-porto/" target="_blank" rel="noopener"><span>LinkedIn</span><small>linkedin.com/in/thais-morais-adeodato-porto</small></a>
+<a class="cbtn" href="https://www.instagram.com/thais.adeodato/" target="_blank" rel="noopener"><span>Instagram</span><small>@thais.adeodato</small></a>
+</div>`}};
+let aboutTab='metodo';
+function aboutHTML(){ const A=ABOUT[lang];
+  return `<div class="atabs" role="tablist">${A.tabs.map(([k,l])=>`<button role="tab" data-tab="${k}" aria-selected="${aboutTab===k}">${l}</button>`).join('')}</div><div class="apane">${A[aboutTab]}</div>`; }
+function renderAbout(){ const b=document.getElementById('aboutBody'); b.innerHTML=aboutHTML(); b.querySelectorAll('[data-tab]').forEach(x=>x.onclick=()=>{aboutTab=x.dataset.tab; renderAbout();}); }
+function openAbout(tab){ aboutTab=tab||aboutTab; renderAbout(); document.getElementById('about').hidden=false; }
+
+function applyLang(){
+  document.documentElement.lang=lang==='pt'?'pt-BR':'en';
+  document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=T(e.dataset.i18n));
+  document.getElementById('lang-pt').setAttribute('aria-pressed',lang==='pt'); document.getElementById('lang-en').setAttribute('aria-pressed',lang==='en');
+  renderAbout();
+  if(data){ setCutoff(cutoff); if(picked) showCard(picked); }
+}
+
+const reduceMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const HOME={longitude:-46.6375,latitude:-23.5445,zoom:14.6,pitch:52,bearing:-18,maxPitch:75,minZoom:12,maxZoom:19};
+function init(){
+  deckgl=new deck.Deck({parent:document.getElementById('map'),
+    initialViewState:reduceMotion?HOME:{...HOME,zoom:13.2,pitch:20,bearing:-60},
+    controller:true,layers:layers(),effects:makeEffects(shadowsOn),
+    getTooltip:({object})=>object&&object.poly?{text:`${object.y||'—'} · ${object.addr||''}`,style:{fontFamily:'IBM Plex Sans, sans-serif',fontSize:'12px',background:'rgba(20,20,20,.85)',color:'#fff',borderRadius:'6px',padding:'4px 8px'}}:null,
+
+  });
+  const mapEl=document.getElementById('map'); let down=null;
+  mapEl.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY,Date.now()];});
+  mapEl.addEventListener('pointerup',e=>{ if(!down) return; const dx=e.clientX-down[0],dy=e.clientY-down[1]; down=null;
+    if(dx*dx+dy*dy>36||e.button!==0) return;
+    const r=mapEl.getBoundingClientRect(); const info=deckgl.pickObject({x:e.clientX-r.left,y:e.clientY-r.top,radius:2,layerIds:['lm','b']}); const o=info&&info.object;
+    if(o&&o.poly){ picked=o; showCard(o); } else if(o&&o.pos){ picked=null; showLandmark(o); } else { picked=null; showCard(null); }
+    refresh(); });
+  ticks(); applyLang();
+  if(!reduceMotion) setTimeout(()=>deckgl.setProps({initialViewState:{...HOME,transitionDuration:3200,transitionInterpolator:new deck.FlyToInterpolator({speed:.8}),transitionEasing:t=>1-Math.pow(1-t,3)}}),350);
+  const cv=document.getElementById('hist'); let drag=false;
+  cv.addEventListener('pointerdown',e=>{drag=true;cv.setPointerCapture(e.pointerId);scrub(e);});
+  cv.addEventListener('pointermove',e=>{ if(drag) scrub(e); });
+  cv.addEventListener('pointerup',()=>drag=false);
+  addEventListener('resize',drawHist);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{setShadows(shadowsOn);refresh();drawHist();});
+  new MutationObserver(()=>{setShadows(shadowsOn);refresh();drawHist();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+}
+
+document.querySelectorAll('.modes button').forEach(b=>b.onclick=()=>{ mode=b.dataset.mode; document.querySelectorAll('.modes button').forEach(x=>x.setAttribute('aria-pressed',x===b)); if(data){renderLegend();refresh();drawHist();} });
+document.getElementById('play').onclick=play;
+document.getElementById('lang-pt').onclick=()=>{lang='pt';try{localStorage.setItem('camadas-lang','pt')}catch(e){};applyLang();};
+document.getElementById('lang-en').onclick=()=>{lang='en';try{localStorage.setItem('camadas-lang','en')}catch(e){};applyLang();};
+document.getElementById('aboutBtn').onclick=()=>openAbout('metodo');
+document.getElementById('byline').onclick=e=>{e.preventDefault();openAbout('contato');};
+document.getElementById('aboutClose').onclick=()=>{document.getElementById('about').hidden=true;};
+document.getElementById('about').onclick=e=>{ if(e.target.id==='about') e.currentTarget.hidden=true; };
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ document.getElementById('about').hidden=true; } });
+renderAbout();
+load().catch(err=>{ document.getElementById('loading').textContent=(lang==='pt'?'Não foi possível carregar os dados: ':'Could not load the data: ')+err.message; });
+})();
+</script>
+
+</body>
+</html>
