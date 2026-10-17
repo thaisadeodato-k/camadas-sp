@@ -11,7 +11,7 @@ on:
 jobs:
   gera:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -31,8 +31,30 @@ jobs:
           sudo make -C /tmp/tippecanoe install
           tippecanoe --version
 
+      # o que já foi baixado do GeoSampa fica guardado entre execuções;
+      # se o tempo acabar, a próxima execução continua de onde parou
+      - name: Recupera downloads anteriores
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            pipeline/cache/wfs
+            pipeline/cache/iptu
+          key: geosampa-${{ github.run_id }}
+          restore-keys: geosampa-
+
       - name: Pipeline (96 distritos)
+        id: pipeline
+        timeout-minutes: 280
         run: python pipeline/camadas.py --todos
+
+      - name: Guarda downloads
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            pipeline/cache/wfs
+            pipeline/cache/iptu
+          key: geosampa-${{ github.run_id }}
 
       - name: Resumo e arquivo por distrito
         run: |

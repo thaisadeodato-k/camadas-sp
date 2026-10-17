@@ -21,6 +21,7 @@ import argparse, gzip, hashlib, json, math, os, re, sys, time, unicodedata, zipf
 from datetime import datetime, timezone
 from pathlib import Path
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -64,6 +65,7 @@ CAMADAS = {
 }
 QUADRICULA = 1000  # metros
 PAGINA = 5000
+SIMULTANEOS = 4  # pedidos ao WFS em paralelo
 
 sys.stdout.reconfigure(encoding='utf-8')
 http = requests.Session()
@@ -281,10 +283,12 @@ def baixa_camada(pasta, camada, poligono):
     partes = pasta / f'{camada}_partes'
     partes.mkdir(parents=True, exist_ok=True)
     celulas = list(quadriculas(poligono, QUADRICULA)) if em_quadriculas else [('distrito', poligono.buffer(50).bounds)]
-    for i, (nome, bbox) in enumerate(celulas, 1):
+
+    def uma(celula):
+        nome, bbox = celula
         arq = partes / f'{nome}.json.gz'
         if arq.exists():
-            continue
+            return
         feats, inicio = [], 0
         while True:
             pag = baixa_pagina(camada, idc, bbox, inicio)
@@ -295,8 +299,12 @@ def baixa_camada(pasta, camada, poligono):
         with gzip.open(arq.with_suffix('.gz.part'), 'wt', encoding='utf-8') as f:
             json.dump(feats, f, separators=(',', ':'))
         os.replace(arq.with_suffix('.gz.part'), arq)
-        if i % 10 == 0 or i == len(celulas):
-            log(f'     {camada}: {i}/{len(celulas)} quadrículas')
+
+    # algumas quadrículas ao mesmo tempo: de longe (Actions, nos EUA) cada pedido demora mais
+    with ThreadPoolExecutor(SIMULTANEOS) as ex:
+        for i, _ in enumerate(ex.map(uma, celulas), 1):
+            if i % 10 == 0 or i == len(celulas):
+                log(f'     {camada}: {i}/{len(celulas)} quadrículas')
     vistos, todas = set(), []
     for arq in sorted(partes.glob('*.json.gz')):
         with gzip.open(arq, 'rt', encoding='utf-8') as f:
