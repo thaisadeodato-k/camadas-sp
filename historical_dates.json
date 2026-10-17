@@ -1,0 +1,165 @@
+{
+  "descricao": "Datas históricas documentadas dos marcos do mapa. Têm prioridade sobre o ano do IPTU na edificação cujo polígono contém a coordenada (hierarquia: 1º registro histórico, 2º IPTU, 3º sem data). 'coord' é [longitude, latitude] em WGS84, conferida contra o contorno da edificação no GeoSampa. 'aplicar_a_edificacao: false' marca o que não é edificação.",
+  "atualizado_em": "2026-10-17",
+  "marcos": [
+    {
+      "id": "patio-do-colegio",
+      "nome": "Pátio do Colégio",
+      "ano": 1979,
+      "evento": "Conclusão da reconstrução do conjunto (igreja e colégio)",
+      "evento_en": "Reconstruction of the church and college completed",
+      "ano_marco": 1554,
+      "evento_marco": "Fundação de São Paulo pelos jesuítas no local",
+      "coord": [
+        -46.63256,
+        -23.54792
+      ],
+      "aplicar_a_edificacao": true,
+      "nota_pt": "1554 é a fundação da cidade neste local. O edifício atual é uma reconstrução concluída em 1979; o original foi demolido entre 1896 e 1953.",
+      "nota_en": "1554 is the city's founding on this site. The current building is a reconstruction finished in 1979; the original was demolished between 1896 and 1953.",
+      "fonte": "Embates pela memória: a reconstrução do conjunto jesuítico do Pátio do Colégio (1941–1979), Revista Risco, IAU-USP.",
+      "url": "https://revistas.usp.br/risco/article/view/157718"
+    },
+    {
+      "id": "estacao-da-luz",
+      "nome": "Estação da Luz",
+      "ano": 1901,
+      "evento": "Inauguração do edifício atual (1º de março de 1901)",
+      "evento_en": "Current building opened (1 March 1901)",
+      "coord": [
+        -46.6353,
+        -23.5351
+      ],
+      "aplicar_a_edificacao": true,
+      "fonte": "CPTM celebra 120 anos da Estação da Luz, Diário do Transporte, 28/02/2021.",
+      "url": "https://diariodotransporte.com.br/2021/02/28/cptm-celebra-120-anos-da-estacao-da-luz/"
+    },
+    {
+      "id": "theatro-municipal",
+      "nome": "Theatro Municipal",
+      "ano": 1911,
+      "evento": "Inauguração (12 de setembro de 1911)",
+      "evento_en": "Opened (12 September 1911)",
+      "coord": [
+        -46.63871,
+        -23.54538
+      ],
+      "aplicar_a_edificacao": true,
+      "fonte": "Prefeitura de São Paulo, Secretaria de Educação, notícia sobre o Theatro Municipal.",
+      "url": "https://prefeitura.sp.gov.br/web/se/w/noticias/21873"
+    },
+    {
+      "id": "edificio-martinelli",
+      "nome": "Edifício Martinelli",
+      "ano": 1929,
+      "evento": "Inauguração parcial (obra iniciada em 1924 e concluída em 1934)",
+      "evento_en": "Partly opened (work began in 1924 and finished in 1934)",
+      "coord": [
+        -46.63517,
+        -23.54553
+      ],
+      "aplicar_a_edificacao": true,
+      "fonte": "Memória: Edifício Martinelli foi o primeiro arranha-céu de São Paulo, Gazeta SP.",
+      "url": "https://www.gazetasp.com.br/noticias/memoria-edificio-martinelli-foi-o-primeiro-arranha-ceu-de-sao-paulo/1089808/"
+    },
+    {
+      "id": "edificio-esther",
+      "nome": "Edifício Esther",
+      "ano": 1938,
+      "evento": "Inauguração (projeto de Álvaro Vital Brazil e Adhemar Marinho)",
+      "evento_en": "Opened (design by Álvaro Vital Brazil and Adhemar Marinho)",
+      "coord": [
+        -46.64268,
+        -23.54463
+      ],
+      "aplicar_a_edificacao": true,
+      "fonte": "Modernismo nas ruas, Sesc São Paulo, 28/03/2012.",
+      "url": "https://portal.sescsp.org.br/online/artigo/compartilhar/5811_MODERNISMO+NAS+RUAS"
+    },
+    {
+      "id": "estacao-julio-prestes",
+      "nome": "Estação Júlio Prestes",
+      "ano": 1938,
+      "evento": "Inauguração do edifício atual (construído entre 1926 e 1938)",
+      "evento_en": "Current building opened (built 1926–1938)",
+      "coord": [
+        -46.64051,
+        -23.5333
+      ],
+      "aplicar_a_edificacao": true,
+      "fonte": "Revista Pós, FAU-USP, artigo sobre a Estação Júlio Prestes e a Sala São Paulo.",
+      "url": "https://revistas.usp.br/posfau/article/download/137406/133096/265476"
+    },
+    {
+      "id": "edificio-altino-arantes",
+      "nome": "Edifício Altino Arantes",
+      "ano": 1947,
+      "evento": "Inauguração (27 de junho de 1947)",
+      "evento_en": "Opened (27 June 1947)",
+      "coord": [
+        -46.63406,
+        -23.54578
+      ],
+      "aplicar_a_edificacao": true,
+      "fonte": "Prédios mais altos de São Paulo foram projetados por mackenzistas, Universidade Presbiteriana Mackenzie.",
+      "url": "https://www.mackenzie.br/noticias/artigo/n/a/i/predios-mais-altos-de-sao-paulo-foram-projetados-por-mackenzistas"
+    },
+    {
+      "id": "catedral-da-se",
+      "nome": "Catedral da Sé",
+      "ano": 1954,
+      "evento": "Inauguração no IV Centenário (25 de janeiro de 1954); torres concluídas em 1967",
+      "evento_en": "Consecrated for the 400th anniversary (25 January 1954); towers finished in 1967",
+      "coord": [
+        -46.63429,
+        -23.5511
+      ],
+      "aplicar_a_edificacao": true,
+      "fonte": "Exposição na Alesp celebra os 70 anos da Catedral da Sé, Assembleia Legislativa de São Paulo.",
+      "url": "https://www.al.sp.gov.br/noticia/?id=486546"
+    },
+    {
+      "id": "edificio-italia",
+      "nome": "Edifício Itália",
+      "ano": 1965,
+      "evento": "Conclusão (construído entre 1956 e 1965)",
+      "evento_en": "Completed (built 1956–1965)",
+      "coord": [
+        -46.64357,
+        -23.54554
+      ],
+      "aplicar_a_edificacao": true,
+      "nota_coord": "Coordenada ajustada para o centro do contorno da torre (46 pavimentos), cadastrada no IPTU como Av. Ipiranga, 376. O pino do mapa fica na calçada, 22 m ao lado.",
+      "fonte": "Memória: Edifício Itália, símbolo da ascensão dos imigrantes italianos, Gazeta SP.",
+      "url": "https://www.gazetasp.com.br/estado/memoria-edificio-italia-simbolo-da-ascensao-dos-imigrantes-italianos/"
+    },
+    {
+      "id": "copan",
+      "nome": "Copan",
+      "ano": 1966,
+      "evento": "Conclusão (projeto de Oscar Niemeyer encomendado em 1951)",
+      "evento_en": "Completed (Oscar Niemeyer design commissioned in 1951)",
+      "coord": [
+        -46.64436,
+        -23.54664
+      ],
+      "aplicar_a_edificacao": true,
+      "fonte": "Memória: Copan, o edifício que surgiu como um presente para São Paulo, Gazeta SP.",
+      "url": "https://www.gazetasp.com.br/estado/memoria-copan-o-edificio-que-surgiu-como-um-presente-para-sao-paulo/"
+    },
+    {
+      "id": "minhocao",
+      "nome": "Minhocão (Elevado João Goulart)",
+      "ano": 1971,
+      "evento": "Inauguração da via elevada",
+      "evento_en": "Elevated highway opened",
+      "coord": [
+        -46.649,
+        -23.5418
+      ],
+      "aplicar_a_edificacao": false,
+      "nota_coord": "Via elevada, não é edificação; não altera nenhum ano do cadastro.",
+      "fonte": "Texto próprio; data amplamente documentada."
+    }
+  ]
+}

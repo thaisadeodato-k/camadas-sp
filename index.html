@@ -253,8 +253,8 @@ const PERIODS=[
   pt:["1946–1964","Metrópole moderna","A cidade passa a crescer para cima. O IV Centenário (1954) celebra a metrópole industrial; o Copan, de Oscar Niemeyer, e o Edifício Itália mudam a silhueta do centro novo."],
   en:["1946–1964","Modern metropolis","The city starts growing upward. The 400th anniversary (1954) celebrates the industrial metropolis; Niemeyer's Copan and the Edifício Itália reshape the skyline."]},
  {id:3,from:1965,to:1984,color:[206,182,98],
-  pt:["1965–1984","Milagre e Minhocão","Anos do “milagre econômico” e da ditadura. O Elevado Costa e Silva, o Minhocão, corta o centro em 1971; a primeira linha do metrô abre em 1974. No cadastro, é o período com mais edificações, mas parte disso é um artefato: o ano 1970 aparece cerca de 12 vezes mais que os anos vizinhos (veja Qualidade dos dados)."],
-  en:["1965–1984","Boom and Minhocão","Years of the “economic miracle” and military rule. The Minhocão elevated highway slices through downtown in 1971; the first metro line opens in 1974. It is the largest period in the register, but partly as an artefact: the year 1970 appears about 12 times more often than neighbouring years (see Data quality)."]},
+  pt:["1965–1984","Milagre e Minhocão","Anos do “milagre econômico” e da ditadura. O Elevado Costa e Silva, o Minhocão, corta o centro em 1971; a primeira linha do metrô abre em 1974. No cadastro, é o período com mais edificações, mas parte disso provavelmente é um artefato: nas edificações do mapa, o ano 1970 aparece cerca de 12 vezes mais que os anos vizinhos (veja Qualidade dos dados)."],
+  en:["1965–1984","Boom and Minhocão","Years of the “economic miracle” and military rule. The Minhocão elevated highway slices through downtown in 1971; the first metro line opens in 1974. It is the largest period in the register, but probably partly as an artefact: among the map's buildings, the year 1970 appears about 12 times more often than neighbouring years (see Data quality)."]},
  {id:4,from:1985,to:1999,color:[112,148,120],
   pt:["1985–1999","Centro esvaziado","Com a redemocratização, sedes de empresas migram para a Paulista e a Faria Lima. O centro perde moradores e investimento; a Operação Urbana Centro (1997) tenta reverter isso."],
   en:["1985–1999","Hollowed-out centre","After the return to democracy, headquarters move to Paulista and Faria Lima. Downtown loses residents and investment; the 1997 Centro urban operation tries to reverse it."]},
@@ -267,7 +267,12 @@ const PERIODS=[
 ];
 const UNKNOWN=[166,162,154];
 const Q_COLORS=[[176,182,188],[214,58,46],[236,160,44],[88,88,92],[124,92,196]];
-function qualOf(d){ if(d.est) return 4; if(!d.y) return 3; if(d.y===1970) return 1; if(d.y<1960&&d.y%5===4) return 2; return 0; }
+/* qualidade do ano do IPTU (d.yi), não do ano exibido */
+function qualOf(d){ if(d.est) return 4; if(!d.yi) return 3; if(d.yi===1970) return 1; if(d.yi<1960&&d.yi%5===4) return 2; return 0; }
+/* sem data: fora da linha do tempo, só aparece em "Hoje" (cutoff 2100) */
+const NO_YEAR=2100;
+const visible=d=>(d.y||NO_YEAR)<=cutoff;
+const counted=d=>!d.dup&&visible(d);
 const LANDMARKS=[
  {pos:[-46.63256,-23.54792],y:1554,pt:"Pátio do Colégio",en:"Pátio do Colégio",dpt:"Onde os jesuítas fundaram São Paulo em 1554. A igreja atual é uma reconstrução de 1979.",den:"Where Jesuits founded São Paulo in 1554. The current church is a 1979 reconstruction."},
  {pos:[-46.63530,-23.53510],y:1901,pt:"Estação da Luz",en:"Luz Station",dpt:"Estação ferroviária inaugurada em 1901, porta de entrada do café e dos imigrantes.",den:"Railway station opened in 1901, the gateway for coffee and immigrants."},
@@ -287,12 +292,14 @@ const I18N={
   clickp:"Clique num período para destacá-lo. Clique numa edificação para ver os detalhes.",floors:"Pavimentos",height:"Altura",use:"Uso",std:"Padrão",units:"Unidades",bairro:"Bairro",addr:"Endereço",built_range:"Unidades construídas entre",
   her_title:"Patrimônio tombado",her_yes:"Tombado (Conpresp, Condephaat ou Iphan)",her_no:"Sem tombamento",her_note:"Inclui imóveis isolados e os que estão dentro de áreas e bairros tombados.",
   fl_title:"Número de pavimentos",use_title:"Uso predominante",tomb:"Tombamento",level:"esfera",res:"Resolução",mun:"municipal",est:"estadual",fed:"federal",est_lot:"Volume estimado a partir do lote (prédio mais novo que o levantamento das edificações).",landmark:"Marco",close:"Fechar",
+  src:"Fonte da data",src_hist:"Registro histórico",src_iptu:"IPTU 2026",src_none:"Sem data",iptu_says:"IPTU registra",iptu_none:"IPTU sem ano",ref:"Referência",
   uses:["Residencial","Comércio e serviços","Misto","Escritórios","Indústria e galpões","Institucional e outros"]},
  en:{kicker:"Layers",tagline:"Every downtown building, coloured by the year it was built and placed in the history that shaped it.",m_period:"Period",m_heritage:"Heritage",m_floors:"Floors",m_use:"Use",m_quality:"Data quality",about:"About & method",contact:"Contact",by:"by",today:"Today",bld:"buildings",standing:"standing in",
   navhint:"Drag to rotate · right-click or Shift to tilt · scroll to zoom",builtin:"Built in",unknown:"No year in tax records",unk_note:"Usually public or tax-exempt property.",
   clickp:"Click a period to highlight it. Click a building for details.",floors:"Floors",height:"Height",use:"Use",std:"Standard",units:"Units",bairro:"Neighbourhood",addr:"Address",built_range:"Units built between",
   her_title:"Listed heritage",her_yes:"Listed (Conpresp, Condephaat or Iphan)",her_no:"Not listed",her_note:"Includes individual buildings and those inside listed areas and districts.",
   fl_title:"Number of floors",use_title:"Main use",tomb:"Listing",level:"level",res:"Resolution",mun:"municipal",est:"state",fed:"federal",est_lot:"Volume estimated from the plot (building newer than the footprint survey).",landmark:"Landmark",close:"Close",
+  src:"Date source",src_hist:"Historical record",src_iptu:"IPTU 2026 tax register",src_none:"No date",iptu_says:"Tax register says",iptu_none:"No year in tax register",ref:"Reference",
   uses:["Residential","Retail and services","Mixed","Offices","Industry and warehouses","Institutional and other"]}
 };
 const USE_COLORS=[[217,164,65],[200,72,52],[150,96,160],[60,120,170],[110,110,100],[90,150,120]];
@@ -316,7 +323,16 @@ let KX=1,KY=1,LON0=0,LAT0=0;
 function toLL(x,y){ return [LON0+x/KX, LAT0+y/KY]; }
 function decode(rings){ return rings.map(r=>{ const out=[]; let x=0,y=0; for(let i=0;i<r.length;i+=2){ x+=r[i]; y+=r[i+1]; out.push(toLL(x/data.scale,y/data.scale)); } return out; }); }
 
+function inRing(p,r){ let c=false; for(let i=0,j=r.length-1;i<r.length;j=i++){ const [xi,yi]=r[i],[xj,yj]=r[j]; if((yi>p[1])!==(yj>p[1])&&p[0]<(xj-xi)*(p[1]-yi)/(yj-yi)+xi) c=!c; } return c; }
+const inPoly=(p,rings)=>inRing(p,rings[0])&&!rings.slice(1).some(h=>inRing(p,h));
+/* hierarquia das datas: 1º registro histórico documentado, 2º ano do IPTU, 3º sem data */
+function applyHistorical(H){
+  for(const m of H.marcos){ if(!m.aplicar_a_edificacao) continue;
+    for(const d of B){ if(!inPoly(m.coord,d.poly)) continue;
+      d.y=m.ano; d.y1=0; d.src='historico'; d.hist=m; d.per=periodOf(m.ano); } }
+}
 async function load(){
+  const histP=fetch('historical_dates.json').then(r=>r.ok?r.json():null).catch(()=>null);
   const res=await fetch('data.json'); let buf=new Uint8Array(await res.arrayBuffer());
   let txt;
   if(buf[0]===0x1f&&buf[1]===0x8b){ const ds=new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip')); txt=await new Response(ds).text(); }
@@ -326,8 +342,10 @@ async function load(){
   const useG=data.uso.map(useGroup);
   for(const b of data.b){
     const [pg,h,y0,y1,pav,addr,uso,pad,bairro,n,tomb,est]=b;
-    for(const poly of pg){ B.push({q:0,poly:decode(poly),h,y:y0,y1,pav,addr,uso,ug:useG[uso],pad,bairro,n,tomb,est,per:periodOf(y0)}); }
+    /* dup: contornos extras da mesma edificação são desenhados, mas não contados */
+    pg.forEach((poly,i)=>{ B.push({q:0,dup:i>0,poly:decode(poly),h,y:y0,yi:y0,src:y0?'iptu':'sem',y1,pav,addr,uso,ug:useG[uso],pad,bairro,n,tomb,est,per:periodOf(y0)}); });
   }
+  const H=await histP; if(H) applyHistorical(H);
   for(const d of B) d.q=qualOf(d);
   data.quadP=data.quad.flatMap(q=>q.map(decode));
   data.distP=data.dist.map(([n,pg])=>({n,paths:pg.map(p=>decode(p)[0])}));
@@ -361,7 +379,7 @@ function layers(){
     new deck.SolidPolygonLayer({id:'b',data:B,extruded:true,pickable:true,
       getPolygon:d=>d.poly,getElevation:d=>d.h,getFillColor:colorFor,
       material:{ambient:.5,diffuse:.6,shininess:12,specularColor:[30,28,24]},
-      getFilterValue:d=>d.y||1800,filterRange:[0,cutoff],extensions:[new deck.DataFilterExtension({filterSize:1})],
+      getFilterValue:d=>d.y||NO_YEAR,filterRange:[0,cutoff],extensions:[new deck.DataFilterExtension({filterSize:1})],
       updateTriggers:{getFillColor:[mode,selPeriod,picked]}}),
     new deck.ScatterplotLayer({id:'lm',data:LANDMARKS.filter(l=>l.y<=cutoff||cutoff>=2100),getPosition:d=>[d.pos[0],d.pos[1],0],getRadius:7,radiusUnits:'pixels',parameters:{depthTest:false},getFillColor:hex(css('--accent')||'#c8402a'),stroked:true,getLineColor:[255,255,255],lineWidthUnits:'pixels',getLineWidth:2,pickable:true,updateTriggers:{getFillColor:[dark]}}),
     new deck.TextLayer({id:'lmt',data:LANDMARKS.filter(l=>l.y<=cutoff||cutoff>=2100),getPosition:d=>[d.pos[0],d.pos[1],0],parameters:{depthTest:false},getText:d=>d[lang],getSize:12,getColor:dark?[236,235,231]:[29,31,34],getPixelOffset:[10,0],getTextAnchor:'start',getAlignmentBaseline:'center',fontFamily:'-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif',fontWeight:600,characterSet:'auto',outlineWidth:3,outlineColor:dark?[18,19,21,220]:[243,239,231,230],fontSettings:{sdf:true},updateTriggers:{getText:[lang],getColor:[dark],outlineColor:[dark]}}),
@@ -383,7 +401,7 @@ function makeEffects(shadow){
 function setShadows(on){ shadowsOn=on; deckgl&&deckgl.setProps({effects:makeEffects(on)}); }
 
 function renderLegend(){
-  const el=document.getElementById('legend'); const vis=B.filter(d=>(d.y||1800)<=cutoff);
+  const el=document.getElementById('legend'); const vis=B.filter(counted);
   let h='';
   if(mode==='period'){
     const cnt=PERIODS.map(p=>vis.filter(d=>d.per===p).length), unk=vis.filter(d=>!d.per).length;
@@ -399,16 +417,17 @@ function renderLegend(){
     const tall=vis.filter(d=>d.pav>=20).length; h+=`<p class="hint">${fmt(tall)} ${lang==='pt'?'edificações com 20 pavimentos ou mais.':'buildings with 20 floors or more.'}</p>`;
   } else if(mode==='quality'){
     const c=[0,0,0,0,0]; vis.forEach(d=>c[d.q]++);
-    const yc=y=>B.filter(d=>d.y===y).length; const y70=yc(1970), nb=Math.round((yc(1969)+yc(1971))/2);
-    const old=B.filter(d=>d.y&&d.y>=1930&&d.y<1960&&!d.est), oldR=old.filter(d=>d.y%5===4).length/Math.max(1,old.length);
     const lb=lang==='pt'?['Ano provavelmente preciso','1970: provável valor padrão','Ano em faixa de 5 anos (antes de 1960)','Sem ano no IPTU','Volume estimado pelo lote']:['Year probably precise','1970: likely default value','Year in 5-year band (before 1960)','No year in tax records','Volume estimated from plot'];
     h+=`<h2>${T('m_quality')}</h2><div class="rows">`+[1,2,3,4,0].map(i=>`<div class="row"><i style="background:rgb(${Q_COLORS[i]})"></i><span>${lb[i]}</span><em>${fmt(c[i])}</em></div>`).join('')+`</div>`;
     const pct=v=>(v*100).toLocaleString(lang==='pt'?'pt-BR':'en-US',{maximumFractionDigits:0})+'%';
-    h+= lang==='pt'?`<div class="story"><strong>O pico de 1970</strong>${fmt(y70)} edificações têm o ano 1970, contra uma média de ${fmt(nb)} em 1969 e 1971. É cerca de ${Math.round(y70/nb)} vezes mais. O padrão sugere um valor usado quando a data real não era conhecida, não um surto de obras.</div>
-      <div class="story"><strong>Anos em faixas de 5</strong>Entre 1930 e 1959, ${pct(oldR)} dos anos terminam em 4 ou 9. Se as datas fossem exatas, seriam cerca de 20%. O “ano de construção corrigido” do IPTU parece agrupar prédios antigos em faixas de 5 anos (1939, 1944, 1949…).</div>
+    /* calculado sobre o ano do IPTU (d.yi) de cada edificação do mapa */
+    const yc=y=>B.filter(d=>!d.dup&&d.yi===y).length; const y70=yc(1970), y69=yc(1969), y71=yc(1971), ratio=Math.round(y70/((y69+y71)/2));
+    const old=B.filter(d=>!d.dup&&d.yi>=1930&&d.yi<1960&&!d.est), oldR=old.filter(d=>d.yi%5===4).length/Math.max(1,old.length);
+    h+= lang==='pt'?`<div class="story"><strong>O pico de 1970</strong>Pelo ano do IPTU, ${fmt(y70)} edificações do mapa têm o ano 1970, contra ${fmt(y69)} em 1969 e ${fmt(y71)} em 1971, cerca de ${ratio} vezes a média dos anos vizinhos. O padrão sugere um valor provavelmente usado quando a data real não era conhecida, e não um surto de obras.</div>
+      <div class="story"><strong>Anos em faixas de 5</strong>Entre as edificações com ano de 1930 a 1959, ${pct(oldR)} terminam em 4 ou 9. Se as datas fossem exatas, seriam cerca de 20%. Isso sugere que o “ano de construção corrigido” do IPTU agrupa prédios antigos em faixas de 5 anos (1939, 1944, 1949…).</div>
       <p class="hint">Na linha do tempo, as barras vermelha e âmbar mostram esses anos. Leia as datas antigas como aproximações de ±5 anos.</p>`
-      :`<div class="story"><strong>The 1970 spike</strong>${fmt(y70)} buildings carry the year 1970, against an average of ${fmt(nb)} in 1969 and 1971, about ${Math.round(y70/nb)} times more. The pattern points to a fallback value used when the real date was unknown, not a construction boom.</div>
-      <div class="story"><strong>Years in 5-year bands</strong>Between 1930 and 1959, ${pct(oldR)} of years end in 4 or 9. With exact dates, it would be about 20%. The register's “corrected construction year” seems to group older buildings into 5-year bands (1939, 1944, 1949…).</div>
+      :`<div class="story"><strong>The 1970 spike</strong>By IPTU year, ${fmt(y70)} of the map's buildings carry the year 1970, against ${fmt(y69)} in 1969 and ${fmt(y71)} in 1971, about ${ratio} times the average of the neighbouring years. The pattern suggests a value probably used when the real date was unknown, not a construction boom.</div>
+      <div class="story"><strong>Years in 5-year bands</strong>Among buildings dated 1930 to 1959, ${pct(oldR)} end in 4 or 9. With exact dates, it would be about 20%. This suggests the register's “corrected construction year” groups older buildings into 5-year bands (1939, 1944, 1949…).</div>
       <p class="hint">On the timeline, red and amber bars mark these years. Read older dates as ±5-year approximations.</p>`;
   } else {
     const cnt=[0,0,0,0,0,0]; vis.forEach(d=>cnt[d.ug]++);
@@ -429,6 +448,7 @@ function showCard(d){
    ${d.y?`<div class="mini">${PERIODS.map(q=>`<span style="background:rgb(${q.color});flex:${Math.min(q.to,2026)-Math.max(q.from,1880)+1}"></span>`).join('')}<b style="left:calc(${((d.y-1880)/(2026-1880)*100).toFixed(1)}% - 1px)"></b></div><div class="mini-lab"><span>1880</span><span>1950</span><span>2026</span></div>`:''}
    <h3>${esc(d.addr||'—')}</h3>
    <dl>
+     <dt>${T('src')}</dt><dd>${T(d.src==='historico'?'src_hist':d.src==='iptu'?'src_iptu':'src_none')}${d.src==='historico'&&d.yi!==d.y?` · ${d.yi?`${T('iptu_says')} ${d.yi}`:T('iptu_none')}`:''}</dd>
      ${d.y1&&d.y1!==d.y?`<dt>${T('built_range')}</dt><dd>${d.y}–${d.y1}</dd>`:''}
      <dt>${T('floors')}</dt><dd>${d.pav||'—'}</dd>
      <dt>${T('height')}</dt><dd>${d.h.toLocaleString(lang==='pt'?'pt-BR':'en-US',{maximumFractionDigits:0})} m</dd>
@@ -438,6 +458,7 @@ function showCard(d){
      ${d.bairro&&!/^(COND|ED |EDIF)/i.test(d.bairro)?`<dt>${T('bairro')}</dt><dd>${esc(d.bairro)}</dd>`:''}
    </dl>
    ${!d.y?`<p class="hint">${T('unk_note')}</p>`:''}
+   ${d.hist?(m=>`<p class="hint">${m['nota_'+lang]?esc(m['nota_'+lang])+' ':''}${esc(lang==='pt'?m.evento:m.evento_en)}. ${T('ref')}: ${esc(m.fonte)}${m.url?` <a href="${encodeURI(m.url)}" target="_blank" rel="noopener">↗</a>`:''}</p>`)(d.hist):''}
    ${d.est?`<p class="hint">${T('est_lot')}</p>`:''}
    ${tb?`<div class="tb"><b>${T('tomb')}:</b> ${esc(tb[0])}${lv?`<br>${lv}`:''}${tb[6]?`<br><a href="${encodeURI(tb[6])}" target="_blank" rel="noopener">${T('res')} ↗</a>`:''}</div>`:''}`;
   el.hidden=false; el.querySelector('.close').onclick=()=>{picked=null;showCard(null);refresh();};
@@ -462,8 +483,7 @@ function drawHist(){
 }
 function ticks(){ const t=[1880,1900,1920,1940,1960,1980,2000,2020]; document.getElementById('ticks').innerHTML=t.map(v=>`<span>${v}</span>`).join(''); }
 function setCutoff(y){ cutoff=y; const big=document.getElementById('yearBig'); big.textContent=y>=2100?T('today'):y;
-  const n=B.filter(d=>(d.y||1800)<=y && (y>=2100||d.y)).length;
-  document.getElementById('yearSub').textContent=`${fmt(y>=2100?B.length:n)} ${T('bld')}`;
+  document.getElementById('yearSub').textContent=`${fmt(B.filter(counted).length)} ${T('bld')}`;
   drawHist(); renderLegend(); refresh(); }
 let playing=null;
 const ICON_PLAY='<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.6v10.8c0 .6.7 1 1.2.7l8.4-5.4a.8.8 0 000-1.4L5.7 1.9c-.5-.3-1.2.1-1.2.7z" fill="currentColor"/></svg>', ICON_PAUSE='<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="2" width="3" height="12" rx="1" fill="currentColor"/><rect x="9.5" y="2" width="3" height="12" rx="1" fill="currentColor"/></svg>';
@@ -484,6 +504,8 @@ metodo:`<h2>Como foi feito</h2>
 <li><b>Atributos.</b> Download do cadastro do IPTU 2026, com 3,9 milhões de linhas, e filtro dos setores fiscais do centro. Os dados foram agregados por lote: ano de construção (o mais antigo entre as unidades), número de pavimentos, área construída, uso e padrão.</li>
 <li><b>Junção.</b> Lotes e IPTU foram ligados pelo código fiscal (setor, quadra e lote; nos condomínios, setor, quadra e número do condomínio). 96% dos lotes do recorte encontraram correspondência.</li>
 <li><b>Edificação ↔ lote.</b> Cada edificação recebeu os dados do lote onde está o seu centro (junção espacial). 97% das 68.684 edificações dentro dos distritos ficaram com ano.</li>
+<li><b>Hierarquia das datas.</b> O ano do IPTU é o “ano de construção corrigido” e pode refletir reformas. Por isso, o ano de cada edificação segue uma ordem de prioridade: 1º uma data histórica documentada, 2º o ano do IPTU, 3º sem data. As datas históricas valem para os marcos de referência que são edificações e estão, com a fonte, no arquivo <code>historical_dates.json</code>; cada uma é aplicada à edificação cujo contorno contém o ponto do marco. O cartão de cada edificação mostra a fonte da data e, quando ela diverge, o ano que o IPTU registra (o Theatro Municipal, de 1911, aparece no IPTU como 1919). No Pátio do Colégio, 1554 é a fundação da cidade no local; o edifício atual é uma reconstrução concluída em 1979, e é esse o ano usado.</li>
+<li><b>Edificações sem data.</b> Edificações sem ano no IPTU e sem registro histórico não entram na linha do tempo, porque não há como saber quando surgiram. Elas aparecem, em cinza, apenas na posição “Hoje”.</li>
 <li><b>Prédios novos.</b> O levantamento das edificações é anterior a muitas obras recentes. Em 935 casos com prédio de 2008 ou depois e pelo menos 4 pavimentos, mais alto que o contorno antigo, o volume foi estimado pelo próprio lote, com 3 m por pavimento.</li>
 <li><b>Patrimônio.</b> Edificações dentro de polígonos tombados (Conpresp, Condephaat ou Iphan) foram marcadas, com link para a resolução.</li>
 <li><b>Verificação.</b> Conferência de marcos conhecidos (Copan, Altino Arantes, Martinelli) e análise da distribuição dos anos, que revelou o pico de 1970 e o arredondamento em faixas de 5 anos (veja a aba Qualidade dos dados).</li>
@@ -499,15 +521,15 @@ cobertura:`<h2>O que cobre e o que não cobre</h2>
 <h3>Não cobre</h3><ul>
 <li>O restante da cidade. A mesma metodologia pode ser aplicada a outros distritos.</li>
 <li>Edificações demolidas: o mapa mostra o que está de pé hoje, não o que existiu.</li>
-<li>Datas exatas de inauguração. O IPTU usa o “ano de construção corrigido”, que pode mudar com reformas, aparece arredondado em faixas de 5 anos antes de 1960 e concentra um número anormal de casos em 1970.</li>
-<li>Cerca de 2 mil edificações sem ano no IPTU, em geral públicas ou isentas.</li>
+<li>Datas exatas de inauguração, exceto nos marcos de referência. O IPTU usa o “ano de construção corrigido”, que pode mudar com reformas, provavelmente aparece arredondado em faixas de 5 anos antes de 1960 e concentra um número anormal de edificações em 1970.</li>
+<li>Cerca de 2 mil edificações sem ano no IPTU, em geral públicas ou isentas. Elas ficam fora da linha do tempo e só aparecem em “Hoje”.</li>
 <li>Prédios muito recentes que ainda não estão no cadastro, e formas exatas de prédios novos (estimadas pelo lote).</li>
 <li>Uso real do imóvel (vacância, ocupações, cortiços): o uso mostrado é o declarado ao fisco.</li></ul>`,
 fontes:`<h2>Fontes dos dados</h2><ul>
 <li><b>Edificações, lotes, quadras, distritos, bens tombados:</b> <a href="https://geosampa.prefeitura.sp.gov.br" target="_blank" rel="noopener">GeoSampa</a>, Prefeitura de São Paulo (SMUL/Prodam), serviço WFS. Baixados em 14/10/2026.</li>
 <li><b>IPTU 2026:</b> cadastro imobiliário fiscal da Secretaria Municipal da Fazenda, publicado no <a href="https://novogeosampa.prefeitura.sp.gov.br" target="_blank" rel="noopener">GeoSampa</a> conforme o <a href="https://prefeitura.sp.gov.br/web/licenciamento/w/disponibiliza%C3%A7%C3%A3o-do-cadastro-fiscal" target="_blank" rel="noopener">Decreto nº 56.701/2015</a>. <a href="https://metadados.geosampa.prefeitura.sp.gov.br/geonetwork/srv/api/records/b971efa1-aad5-42f3-ad28-18f1f4efe270" target="_blank" rel="noopener">Metadados</a>.</li>
 <li><b>Patrimônio:</b> camada de bens tombados do GeoSampa (DPH/SMC), com resoluções do Conpresp, Condephaat e Iphan.</li>
-<li><b>Textos históricos e marcos:</b> textos próprios, com datas amplamente documentadas.</li>
+<li><b>Textos históricos e marcos:</b> textos próprios. As datas dos marcos e a referência de cada uma estão em <a href="historical_dates.json" target="_blank" rel="noopener">historical_dates.json</a>.</li>
 <li><b>Inspiração:</b> <a href="https://stop-token.com/lab/amsterdam/" target="_blank" rel="noopener">LAYRS: Amsterdam</a>, de Alex Barakov, inspirado em <i>Paris, building by building</i>, de Sasha Bogachev.</li></ul>
 <p class="note">Projeto não comercial, feito por curiosidade e para ensino.</p>`,
 contato:`<h2>Contato</h2>
@@ -525,6 +547,8 @@ metodo:`<h2>How it was made</h2>
 <li><b>Attributes.</b> The 2026 IPTU register, 3.9 million rows, filtered to downtown tax sectors and aggregated per plot: construction year (oldest unit), floors, built area, use and building standard.</li>
 <li><b>Join.</b> Plots and tax records were linked by fiscal code (sector, block and plot; for condominiums, sector, block and condominium number). 96% of plots matched.</li>
 <li><b>Building ↔ plot.</b> Each building takes the data of the plot containing its centre (spatial join). 97% of the 68,684 buildings inside the districts got a year.</li>
+<li><b>Date hierarchy.</b> The IPTU year is a “corrected construction year” and may reflect renovations. Each building's year therefore follows an order of priority: 1st a documented historical date, 2nd the IPTU year, 3rd no date. Historical dates apply to the reference landmarks that are buildings and are listed, with sources, in <code>historical_dates.json</code>; each is applied to the building whose footprint contains the landmark's point. Each building's card shows the date source and, when they differ, the year in the tax register (the 1911 Theatro Municipal is recorded as 1919). At Pátio do Colégio, 1554 is the city's founding on the site; the current building is a reconstruction finished in 1979, and that is the year used.</li>
+<li><b>Undated buildings.</b> Buildings with no IPTU year and no historical record are left out of the timeline, since there is no way to know when they appeared. They show, in grey, only at “Today”.</li>
 <li><b>New buildings.</b> The footprint survey predates many recent projects. In 935 cases with a 2008+ building of 4 or more floors taller than the old footprint, the volume was estimated from the plot itself at 3 m per floor.</li>
 <li><b>Heritage.</b> Buildings inside listed polygons (Conpresp, Condephaat or Iphan) were flagged, with a link to the resolution.</li>
 <li><b>Checks.</b> Known landmarks (Copan, Altino Arantes, Martinelli) were checked, and the year distribution was analysed, revealing the 1970 spike and 5-year rounding (see the Data quality tab).</li>
@@ -540,15 +564,15 @@ cobertura:`<h2>What it covers and what it doesn't</h2>
 <h3>Doesn't cover</h3><ul>
 <li>The rest of the city. The same method can be applied to other districts.</li>
 <li>Demolished buildings: the map shows what stands today, not what existed.</li>
-<li>Exact opening dates. The register's “corrected construction year” can change after renovations, is rounded into 5-year bands before 1960 and has an abnormal cluster at 1970.</li>
-<li>About 2,000 buildings with no year, usually public or tax-exempt.</li>
+<li>Exact opening dates, except for the reference landmarks. The register's “corrected construction year” can change after renovations, is probably rounded into 5-year bands before 1960 and has an abnormal cluster of buildings at 1970.</li>
+<li>About 2,000 buildings with no year, usually public or tax-exempt. They are left out of the timeline and only show at “Today”.</li>
 <li>Very recent buildings not yet in the register, and exact shapes of new buildings (estimated from plots).</li>
 <li>Actual occupancy (vacancy, squats, tenements): the use shown is the one declared for tax purposes.</li></ul>`,
 fontes:`<h2>Data sources</h2><ul>
 <li><b>Buildings, plots, blocks, districts, heritage:</b> <a href="https://geosampa.prefeitura.sp.gov.br" target="_blank" rel="noopener">GeoSampa</a>, City of São Paulo (SMUL/Prodam), WFS service. Downloaded 14 Oct 2026.</li>
 <li><b>IPTU 2026:</b> municipal property-tax register (Finance Department), published on <a href="https://novogeosampa.prefeitura.sp.gov.br" target="_blank" rel="noopener">GeoSampa</a> under <a href="https://prefeitura.sp.gov.br/web/licenciamento/w/disponibiliza%C3%A7%C3%A3o-do-cadastro-fiscal" target="_blank" rel="noopener">Decree 56,701/2015</a>. <a href="https://metadados.geosampa.prefeitura.sp.gov.br/geonetwork/srv/api/records/b971efa1-aad5-42f3-ad28-18f1f4efe270" target="_blank" rel="noopener">Metadata</a>.</li>
 <li><b>Heritage:</b> GeoSampa listed-heritage layer (DPH/SMC), with Conpresp, Condephaat and Iphan resolutions.</li>
-<li><b>Historical texts and landmarks:</b> original texts with widely documented dates.</li>
+<li><b>Historical texts and landmarks:</b> original texts. Landmark dates and the reference for each are in <a href="historical_dates.json" target="_blank" rel="noopener">historical_dates.json</a>.</li>
 <li><b>Inspiration:</b> <a href="https://stop-token.com/lab/amsterdam/" target="_blank" rel="noopener">LAYRS: Amsterdam</a> by Alex Barakov, inspired by Sasha Bogachev's <i>Paris, building by building</i>.</li></ul>
 <p class="note">A non-commercial project, made out of curiosity and for teaching.</p>`,
 contato:`<h2>Contact</h2>
