@@ -41,6 +41,9 @@ def main():
         'razao_1970_vizinhos': round(a70 / ((a69 + a71) / 2), 1) if a69 + a71 else None,
         'edif_em_favela': int(r.edif_em_favela.sum()), 'edif_em_loteamento': int(r.edif_em_loteamento.sum()),
         'edif_tombadas': int(r.edif_tombadas.sum()),
+        'edif_em_zeis1': int(r.edif_em_zeis1.sum()),
+        'edif_sem_lote': int(r.edif_sem_lote.sum()),
+        'edif_sem_lote_em_favela_lot_zeis1': int(r.edif_sem_lote_em_favela_lot_zeis1.sum()),
     }
     c = r[r.chave.isin(CENTRO)]
     centro = {'edificacoes': int(c.edificacoes.sum()), 'pct_com_ano': round((c.edificacoes * c.pct_com_ano).sum() / c.edificacoes.sum(), 1),
@@ -69,7 +72,8 @@ def main():
     L.append(f"- Com ano de construção no IPTU: **{fmt(cidade['pct_com_ano'], 1)}%**")
     L.append(f"- Lotes ligados ao IPTU: **{fmt(cidade['pct_lotes_com_iptu'], 1)}%** de {fmt(lotes)} lotes")
     L.append(f"- Ano 1970: {fmt(a70)} edificações, contra {fmt(a69)} em 1969 e {fmt(a71)} em 1971 ({fmt(cidade['razao_1970_vizinhos'], 1)} vezes a média dos vizinhos)")
-    L.append(f"- Em favelas mapeadas: {fmt(cidade['edif_em_favela'])}; em loteamentos irregulares mapeados: {fmt(cidade['edif_em_loteamento'])}")
+    L.append(f"- Em favelas mapeadas: {fmt(cidade['edif_em_favela'])}; em loteamentos irregulares mapeados: {fmt(cidade['edif_em_loteamento'])}; em ZEIS-1: {fmt(cidade['edif_em_zeis1'])}")
+    L.append(f"- Fora de qualquer lote fiscal: {fmt(cidade['edif_sem_lote'])}, das quais {fmt(cidade['edif_sem_lote_em_favela_lot_zeis1'])} em favela, loteamento irregular ou ZEIS-1")
     if centro:
         L.append(f"- Conferência: os 10 distritos do centro somam {fmt(centro['edificacoes'])} edificações (o `data.json` atual tem 68.684)")
     L.append('\n## Distritos com menor % de edificações com ano\n')

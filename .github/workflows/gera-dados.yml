@@ -60,6 +60,7 @@ jobs:
         run: |
           python pipeline/resumo.py
           python pipeline/gera_site.py distritos
+          python pipeline/gera_site.py tombados
 
       - name: Entrada dos blocos
         run: python pipeline/gera_site.py tiles
@@ -67,10 +68,11 @@ jobs:
       - name: Blocos de mapa (PMTiles)
         run: |
           mkdir -p tiles
-          tippecanoe -o tiles/edificacoes.pmtiles -l edificacoes \
+          tippecanoe -o tiles/edificacoes.pmtiles \
             -Z13 -z16 --drop-densest-as-needed --extend-zooms-if-still-dropping \
             --read-parallel --force \
-            pipeline/cache/tiles/edificacoes.geojsonl
+            -L edificacoes:pipeline/cache/tiles/edificacoes.geojsonl \
+            -L quadras:pipeline/cache/tiles/quadras.geojsonl
           ls -la tiles
           echo "### Tamanho dos blocos" >> "$GITHUB_STEP_SUMMARY"
           ls -la tiles >> "$GITHUB_STEP_SUMMARY"
@@ -82,5 +84,6 @@ jobs:
           path: |
             tiles/edificacoes.pmtiles
             distritos.json
+            tombados.json
             pipeline/saida/
             pipeline/cache/fontes.json

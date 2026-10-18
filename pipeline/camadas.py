@@ -9,7 +9,8 @@ Etapas, todas retomáveis (o que já está no cache é pulado):
                 e pasta de downloads do IPTU) e grava em cache/fontes.json
   2. iptu       baixa o IPTU da cidade uma única vez e agrega por lote (ou condomínio)
   3. wfs        para cada distrito, baixa edificações, lotes, quadras, bens tombados,
-                favelas e loteamentos em quadrículas de 1 km que tocam o distrito
+                favelas e loteamentos em quadrículas de 1 km que tocam o distrito;
+                as ZEIS-1 vêm de uma vez para a cidade toda (filtro por atributo)
   4. cruzamento IPTU -> lote pelo código fiscal; edificação -> lote pela posição
   5. relatório  métricas de qualidade por distrito em relatorio_qualidade.csv
 
@@ -62,6 +63,13 @@ CAMADAS = {
                                              ['gid', 'nome', 'tot_domicilio', 'areageo_m2', 'anoimplant'], False),
     'habita2geosampa_habi_loteamento2geosampa': ('gid', '3948e9f0-f89e-4219-9032-4d5f49835d32',
                                                  ['gid', 'nome', 'totlotes', 'areageo_m2', 'definicao'], False),
+}
+# camadas baixadas uma vez para a cidade inteira, filtradas por atributo
+# (perímetros de zona da Lei 18.081/2024, o mapa de zoneamento atualizado mais recentemente no GeoSampa)
+CAMADAS_CIDADE = {
+    'perimetro_zona_lei_18081_24': ('cd_identificador', '9c536c5c-535b-4b8b-b9e0-e1435f470e58',
+                                    ['cd_identificador', 'cd_zoneamento_perimetro', 'dt_atualizacao'],
+                                    "cd_zoneamento_perimetro='ZEIS-1'"),
 }
 QUADRICULA = 1000  # metros
 PAGINA = 5000
@@ -169,6 +177,8 @@ def etapa_fontes():
     man['verificado_em'] = agora()
     man['iptu'] = {**man.get('iptu', {}), 'servidor': iptu_no_servidor(), 'metadados': datas_metadados(IPTU_META)}
     for camada, (_, uuid, _, _) in CAMADAS.items():
+        man.setdefault('wfs', {}).setdefault(camada, {})['metadados'] = datas_metadados(uuid)
+    for camada, (_, uuid, _, _) in CAMADAS_CIDADE.items():
         man.setdefault('wfs', {}).setdefault(camada, {})['metadados'] = datas_metadados(uuid)
     for nome in ['geosampa_distritos_96.geojson', 'populacao_distritos_censo2022.csv']:
         man.setdefault('arquivos_locais', {})[nome] = {'sha256': sha256(FONTES / nome)}
@@ -323,6 +333,36 @@ def baixa_camada(pasta, camada, poligono):
     return destino
 
 
+def baixa_cidade(camada, man):
+    """Camada inteira da cidade, só as feições que passam no filtro (ex.: ZEIS-1)."""
+    idc, _, campos, filtro = CAMADAS_CIDADE[camada]
+    destino = CACHE / 'wfs' / '_cidade' / f'{camada}.json.gz'
+    if not destino.exists():
+        log(f'3. wfs: {camada} (cidade inteira, {filtro})')
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        feats, inicio = [], 0
+        while True:
+            r = pede('GET', WFS, params={'service': 'WFS', 'version': '2.0.0', 'request': 'GetFeature', 'typeNames': 'geoportal:' + camada,
+                                         'outputFormat': 'application/json', 'srsName': CRS, 'count': PAGINA, 'startIndex': inicio,
+                                         'sortBy': idc, 'cql_filter': filtro})
+            pag = r.json()['features']
+            feats += [{'p': {k: f['properties'].get(k) for k in campos}, 'g': f['geometry']} for f in pag if f.get('geometry')]
+            if len(pag) < PAGINA:
+                break
+            inicio += PAGINA
+        with gzip.open(destino.with_suffix('.gz.part'), 'wt', encoding='utf-8') as f:
+            json.dump(feats, f, separators=(',', ':'))
+        os.replace(destino.with_suffix('.gz.part'), destino)
+    info = man.setdefault('wfs', {}).setdefault(camada, {})
+    h = sha256(destino)
+    if info.get('cidade', {}).get('sha256') != h:
+        info['cidade'] = {'sha256': h, 'baixado_em': agora(), 'filtro': filtro}
+    gdf = le_camada(destino)
+    if len(gdf):
+        info['cidade']['ultima_alteracao_nos_dados'] = str(pd.Series(gdf.dt_atualizacao).dropna().max())
+    return gdf
+
+
 def le_camada(arq):
     with gzip.open(arq, 'rt', encoding='utf-8') as f:
         feats = json.load(f)
@@ -339,7 +379,7 @@ def pontos(E):
     """Ponto interno de cada edificação, com 'i' = índice da edificação (posição a posição, sem realinhar)."""
     return gpd.GeoDataFrame({'i': E.index.to_numpy()}, geometry=E.representative_point().to_numpy(), crs=CRS)
 
-def processa_distrito(cd, nome, poligono, I, man):
+def processa_distrito(cd, nome, poligono, I, man, ZEIS):
     s = slug(nome)
     pasta = CACHE / 'wfs' / f'{cd}_{s}'
     pasta.mkdir(parents=True, exist_ok=True)
@@ -427,6 +467,7 @@ def processa_distrito(cd, nome, poligono, I, man):
         return pd.Series(E.index.isin(jj.i), index=E.index)
     E['em_favela'] = dentro_de(FV)
     E['em_loteamento'] = dentro_de(LT)
+    E['em_zeis1'] = dentro_de(ZEIS.iloc[ZEIS.sindex.query(poligono)])
 
     E = E.drop(columns=['tx_situ_lote', 'dt_atualizacao'], errors='ignore').reset_index(drop=True)
     E['ano_min'] = E.ano_min.fillna(0).astype(int)
@@ -471,6 +512,11 @@ def processa_distrito(cd, nome, poligono, I, man):
         'edif_em_loteamento': int(E.em_loteamento.sum()),
         'pct_sem_ano_em_loteamento': pct((sem_ano & E.em_loteamento).sum(), E.em_loteamento.sum()),
         'pct_sem_ano_fora_de_ambos': pct((sem_ano & ~E.em_favela & ~E.em_loteamento).sum(), (~E.em_favela & ~E.em_loteamento).sum()),
+        'edif_em_zeis1': int(E.em_zeis1.sum()),
+        'pct_sem_ano_em_zeis1': pct((sem_ano & E.em_zeis1).sum(), E.em_zeis1.sum()),
+        'edif_sem_lote': int((~E.com_lote.astype(bool)).sum()),
+        # sem lote fiscal e dentro de favela, loteamento irregular ou ZEIS-1
+        'edif_sem_lote_em_favela_lot_zeis1': int((~E.com_lote.astype(bool) & (E.em_favela | E.em_loteamento | E.em_zeis1)).sum()),
         'bens_tombados': int(dentro(Tp.geometry).sum()) if len(Tp) else 0,
         'edif_tombadas': int((E.tomb >= 0).sum()),
         'minutos_download': round(t_wfs / 60, 1),
@@ -501,10 +547,11 @@ def main():
 
     man = etapa_fontes()
     I = etapa_iptu(man)
+    ZEIS = baixa_cidade('perimetro_zona_lei_18081_24', man)
     linhas = []
     for r in sel.itertuples():
         cd = str(r.cd_distrito_municipal).zfill(2)
-        linhas.append(processa_distrito(cd, r.nm_distrito_municipal, r.geometry, I, man))
+        linhas.append(processa_distrito(cd, r.nm_distrito_municipal, r.geometry, I, man, ZEIS))
         grava_json(CACHE / 'fontes.json', man)
         l = linhas[-1]
         log(f"   {l['distrito']}: {l['edificacoes']:,} edificações · {l['pct_com_lote']}% com lote · "
