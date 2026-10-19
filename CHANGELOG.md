@@ -1,6 +1,17 @@
 # Histórico de mudanças
 As atualizações mensais dos dados são registradas aqui automaticamente pelo workflow `gera-dados.yml`; as mudanças no site e no método, à mão.
 
+## 2026-10-19: dados atualizados
+
+Mudança no código do pipeline.
+
+Resultado:
+
+- Lotes ligados ao IPTU: 98,1% na cidade; 0 distrito(s) abaixo de 90%.
+- Distritos: 96.
+- Edificações: 2.789.795 → 2.789.795 (+0,00%).
+- Com ano no IPTU: 89,5% → 89,5%.
+
 ## 2026-10-19: atualização mensal automática e README
 
 - Verificação mensal das fontes (`pipeline/verifica_fontes.py`): os dados só são gerados de novo quando alguma fonte muda no GeoSampa, ou depois de 180 dias.
