@@ -815,9 +815,11 @@ function renderTable(){
 }
 
 /* ---------- sobre e método (números vêm do distritos.json) ---------- */
+/* data da última verificação mensal das fontes (fontes_verificadas.json, da release "dados") */
+let VERIF=null;
 function aboutTexts(){
   const c=META.cidade, A=CITY, F=META.fontes, d=s=>s?new Date(s+(s.length===10?'T12:00':'')).toLocaleDateString(LOC()):'—';
-  const proc=d(F.processado_em), nd=D.filter(f=>f.properties.sem_levantamento).map(f=>f.properties.nome).join(', ');
+  const proc=d(F.processado_em), chk=VERIF&&VERIF.verificado_em?d(VERIF.verificado_em.slice(0,10)):null, nd=D.filter(f=>f.properties.sem_levantamento).map(f=>f.properties.nome).join(', ');
   const cam=F.camadas, rev=k=>cam[k]?(cam[k].revisao_metadados||cam[k].registro_metadados):null;
   const pt={tabs:[["metodo","Como foi feito"],["cobertura","O que cobre"],["fontes","Fontes"],["contato","Contato"]],
 metodo:`<h2 id="aboutTitle">Como foi feito</h2>
@@ -859,7 +861,7 @@ fontes:`<h2 id="aboutTitle">Fontes dos dados</h2><ul>
 <li><b>Patrimônio:</b> camada de bens tombados do GeoSampa (DPH/SMC), com resoluções do Conpresp, Condephaat e Iphan.</li>
 <li><b>Textos históricos e marcos:</b> textos próprios. As datas dos marcos e a referência de cada uma estão em <a href="historical_dates.json" target="_blank" rel="noopener">historical_dates.json</a>.</li>
 <li><b>Inspiração:</b> <a href="https://stop-token.com/lab/amsterdam/" target="_blank" rel="noopener">LAYRS: Amsterdam</a>, de Alex Barakov, inspirado em <i>Paris, building by building</i>, de Sasha Bogachev.</li></ul>
-<p class="note">Dados processados em ${proc}. Projeto não comercial, feito por curiosidade e para ensino.</p>`,
+<p class="note">Dados processados em ${proc}.${chk?` Fontes conferidas em ${chk} (verificação mensal automática).`:''} Projeto não comercial, feito por curiosidade e para ensino.</p>`,
 contato:`<h2 id="aboutTitle">Contato</h2>
 <p>Este mapa foi feito por <b>Thais Adeodato</b>, arquiteta e urbanista que trabalha com governança de dados. Sugestões, correções e histórias sobre os prédios da cidade são bem-vindas.</p>
 <div class="contacts">
@@ -906,7 +908,7 @@ fontes:`<h2 id="aboutTitle">Data sources</h2><ul>
 <li><b>Heritage:</b> GeoSampa listed-heritage layer (DPH/SMC), with Conpresp, Condephaat and Iphan resolutions.</li>
 <li><b>Historical texts and landmarks:</b> original texts. Landmark dates and the reference for each are in <a href="historical_dates.json" target="_blank" rel="noopener">historical_dates.json</a>.</li>
 <li><b>Inspiration:</b> <a href="https://stop-token.com/lab/amsterdam/" target="_blank" rel="noopener">LAYRS: Amsterdam</a> by Alex Barakov, inspired by Sasha Bogachev's <i>Paris, building by building</i>.</li></ul>
-<p class="note">Data processed on ${proc}. A non-commercial project, made out of curiosity and for teaching.</p>`,
+<p class="note">Data processed on ${proc}.${chk?` Sources last checked on ${chk} (automatic monthly check).`:''} A non-commercial project, made out of curiosity and for teaching.</p>`,
 contato:`<h2 id="aboutTitle">Contact</h2>
 <p>This map was made by <b>Thais Adeodato</b>, an architect and urban planner working in data governance. Suggestions, corrections and stories about the city's buildings are welcome.</p>
 <div class="contacts">
@@ -939,6 +941,7 @@ async function load(){
   META=await r.json(); D=META.features; CITY=agg(D.map(f=>f.properties)); OUTL=outlines(); computeCaps();
   { const C=D.filter(f=>f.properties.regiao==='Centro'); CENTRO=new Set(C.map(f=>f.properties.cd));
     if(C.length){ let x0=180,y0=90,x1=-180,y1=-90; for(const f of C){ const [[a,b],[c,d]]=bboxOf(f); x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,c);y1=Math.max(y1,d); } CENTRO_BB=[x0,y0,x1,y1]; } }
+  fetch('fontes_verificadas.json').then(r=>r.ok?r.json():null).then(j=>{ if(j){ VERIF=j; renderAbout(); } }).catch(()=>{});
   /* hexágonos chegam depois do primeiro desenho */
   fetch('hexagonos.json').then(r=>r.ok?r.json():null).then(J=>{ if(!J) return;
     /* h[10]: contagem pelos 6 grupos de uso, com o mesmo agrupamento dos distritos */

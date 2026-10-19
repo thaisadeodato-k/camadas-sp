@@ -2,3 +2,8 @@
 pipeline/cache/
 __pycache__/
 tiles/
+# gerados pelo pipeline; publicados pela release "dados"
+/distritos.json
+/hexagonos.json
+/tombados.json
+/fontes_verificadas.json
