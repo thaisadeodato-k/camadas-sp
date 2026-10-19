@@ -1,0 +1,56 @@
+# Publica o site no GitHub Pages: junta as páginas do repositório com os dados
+# guardados na release "dados" (gerados pelo workflow gera-dados.yml).
+# Os dados não entram no histórico do Git (o arquivo dos prédios tem mais de 100 MB).
+name: Publica o site
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['index.html', 'historical_dates.json', '.github/workflows/publica-site.yml']
+  # quando a main gera dados novos, o site é publicado de novo
+  workflow_run:
+    workflows: ['Gera dados e blocos de mapa']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# uma publicação por vez; a mais nova espera a anterior terminar
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publica:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Monta o site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p site/tiles
+          cp index.html historical_dates.json site/
+          gh release download dados --repo "$GITHUB_REPOSITORY" --dir site --pattern '*.json'
+          gh release download dados --repo "$GITHUB_REPOSITORY" --dir site/tiles --pattern 'edificacoes.pmtiles'
+          ls -laR site
+          echo "### Arquivos publicados" >> "$GITHUB_STEP_SUMMARY"
+          ls -laR site >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

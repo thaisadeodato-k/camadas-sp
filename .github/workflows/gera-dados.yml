@@ -1,0 +1,105 @@
+# Roda o pipeline completo e gera os blocos de mapa (PMTiles) com o tippecanoe.
+# Na main, guarda os resultados na release "dados", de onde o workflow publica-site.yml
+# monta o site; nas outras branches só produz arquivos para conferência (artefato).
+name: Gera dados e blocos de mapa
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, pipeline-etapa3]
+    paths: ['pipeline/**', '.github/workflows/gera-dados.yml']
+
+jobs:
+  gera:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instala dependências
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Instala tippecanoe
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libsqlite3-dev zlib1g-dev
+          git clone --depth 1 --branch 2.79.0 https://github.com/felt/tippecanoe.git /tmp/tippecanoe
+          make -C /tmp/tippecanoe -j4
+          sudo make -C /tmp/tippecanoe install
+          tippecanoe --version
+
+      # o que já foi baixado do GeoSampa fica guardado entre execuções;
+      # se o tempo acabar, a próxima execução continua de onde parou
+      - name: Recupera downloads anteriores
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            pipeline/cache/wfs
+            pipeline/cache/iptu
+          key: geosampa-${{ github.run_id }}
+          restore-keys: geosampa-
+
+      - name: Pipeline (96 distritos)
+        id: pipeline
+        timeout-minutes: 280
+        run: python pipeline/camadas.py --todos
+
+      - name: Guarda downloads
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            pipeline/cache/wfs
+            pipeline/cache/iptu
+          key: geosampa-${{ github.run_id }}
+
+      - name: Resumo e arquivo por distrito
+        run: |
+          python pipeline/resumo.py
+          python pipeline/gera_site.py distritos
+          python pipeline/gera_site.py tombados
+          python pipeline/gera_site.py hexagonos
+
+      - name: Entrada dos blocos
+        run: python pipeline/gera_site.py tiles
+
+      - name: Blocos de mapa (PMTiles)
+        run: |
+          mkdir -p tiles
+          tippecanoe -o tiles/edificacoes.pmtiles \
+            -Z13 -z16 --drop-densest-as-needed --extend-zooms-if-still-dropping \
+            --read-parallel --force \
+            -L edificacoes:pipeline/cache/tiles/edificacoes.geojsonl \
+            -L quadras:pipeline/cache/tiles/quadras.geojsonl
+          ls -la tiles
+          echo "### Tamanho dos blocos" >> "$GITHUB_STEP_SUMMARY"
+          ls -la tiles >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dados-gerados
+          retention-days: 7
+          path: |
+            tiles/edificacoes.pmtiles
+            distritos.json
+            tombados.json
+            hexagonos.json
+            pipeline/saida/
+            pipeline/cache/fontes.json
+
+      # só a main atualiza os dados do site
+      - name: Guarda os dados na release "dados"
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view dados >/dev/null 2>&1 || gh release create dados --latest=false \
+            --title "Dados do site" \
+            --notes "Arquivos gerados pelo pipeline e usados pelo site; atualizados pelo workflow gera-dados."
+          gh release upload dados tiles/edificacoes.pmtiles distritos.json tombados.json hexagonos.json --clobber

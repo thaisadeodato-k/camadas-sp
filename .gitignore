@@ -1,0 +1,4 @@
+.venv/
+pipeline/cache/
+__pycache__/
+tiles/
