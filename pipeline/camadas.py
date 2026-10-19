@@ -3,6 +3,7 @@
 Uso:
     python pipeline/camadas.py --distritos "JARDIM ANGELA" "CIDADE TIRADENTES" PERUS
     python pipeline/camadas.py --todos
+    python pipeline/camadas.py --todos --renova iptu edificacao   # baixa de novo só essas fontes
 
 Etapas, todas retomáveis (o que já está no cache é pulado):
   1. fontes     lê a data de atualização de cada fonte (catálogo de metadados do GeoSampa
@@ -526,13 +527,33 @@ def processa_distrito(cd, nome, poligono, I, man, ZEIS):
 
 # ---------------------------------------------------------------- principal
 
+def renova(fontes):
+    """Tira do cache as fontes que mudaram, para que sejam baixadas de novo."""
+    import shutil
+    if 'todas' in fontes:
+        fontes = ['iptu', *CAMADAS, *CAMADAS_CIDADE]
+    desconhecidas = [f for f in fontes if f != 'iptu' and f not in CAMADAS and f not in CAMADAS_CIDADE]
+    if desconhecidas:
+        sys.exit(f'fonte desconhecida em --renova: {desconhecidas}')
+    for f in fontes:
+        log(f'0. renova: {f}')
+        if f == 'iptu':
+            shutil.rmtree(CACHE / 'iptu', ignore_errors=True)
+            continue
+        for arq in [*(CACHE / 'wfs').glob(f'*/{f}.json.gz'), *(CACHE / 'wfs').glob(f'*/{f}_partes')]:
+            shutil.rmtree(arq) if arq.is_dir() else arq.unlink()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument('--distritos', nargs='+', help='nomes dos distritos (com ou sem acento)')
     g.add_argument('--todos', action='store_true', help='os 96 distritos')
     ap.add_argument('--relatorio', default=str(SAIDA / 'relatorio_qualidade.csv'))
+    ap.add_argument('--renova', nargs='*', default=[], metavar='FONTE',
+                    help="apaga do cache e baixa de novo: 'iptu', nomes de camadas WFS ou 'todas' (ver verifica_fontes.py)")
     a = ap.parse_args()
+    renova(a.renova)
 
     D = gpd.read_file(FONTES / 'geosampa_distritos_96.geojson').to_crs(CRS)
     D['chave'] = D.nm_distrito_municipal.map(chave)

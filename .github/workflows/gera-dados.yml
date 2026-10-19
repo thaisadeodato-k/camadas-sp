@@ -1,20 +1,92 @@
-# Roda o pipeline completo e gera os blocos de mapa (PMTiles) com o tippecanoe.
-# Na main, guarda os resultados na release "dados", de onde o workflow publica-site.yml
-# monta o site; nas outras branches só produz arquivos para conferência (artefato).
+# Atualização dos dados do site.
+# Todo dia 5, confere se alguma fonte mudou no GeoSampa (verifica_fontes.py, poucos segundos).
+# Só se mudou, roda o pipeline completo, passa pelos controles de qualidade (controle.py) e,
+# na main, guarda os resultados na release "dados"; o workflow publica-site.yml então publica o site.
+# Se um controle falhar, nada é publicado e uma issue explica o motivo.
+# Nas outras branches, só produz arquivos para conferência (artefato).
 name: Gera dados e blocos de mapa
 
 on:
+  schedule:
+    - cron: '0 9 5 * *'  # dia 5 de cada mês, 6h em Brasília
   workflow_dispatch:
+    inputs:
+      forcar:
+        description: 'Gerar os dados mesmo que nenhuma fonte tenha mudado'
+        type: boolean
+        default: true
   push:
     branches: [main, pipeline-etapa3]
     paths: ['pipeline/**', '.github/workflows/gera-dados.yml']
 
+# uma execução por vez, para duas não gravarem a release ao mesmo tempo
+concurrency:
+  group: gera-dados
+  cancel-in-progress: false
+
 jobs:
-  gera:
+  verifica:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
+    outputs:
+      mudou: ${{ steps.v.outputs.mudou }}
+      renovar: ${{ steps.v.outputs.renovar }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instala dependências
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Assinatura da última atualização
+        run: gh release download dados --pattern fontes_verificadas.json --dir anterior || echo "sem assinatura anterior"
+
+      # --renovado-em só vale na primeira verificação: data do download que gerou os dados publicados
+      - name: Confere as fontes
+        id: v
+        run: |
+          python pipeline/verifica_fontes.py --anterior anterior/fontes_verificadas.json \
+            --saida pipeline/saida/fontes_verificadas.json --renovado-em 2026-10-17T08:52:34-03:00
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verificacao
+          retention-days: 30
+          path: |
+            pipeline/saida/fontes_verificadas.json
+            pipeline/saida/mudancas.md
+
+      # sem mudança, só registra a data da verificação (o site mostra "fontes conferidas em")
+      - name: Registra a verificação
+        if: steps.v.outputs.mudou != 'true' && github.ref == 'refs/heads/main'
+        run: gh release upload dados pipeline/saida/fontes_verificadas.json --clobber
+
+      - name: Avisa que há IPTU de um ano novo
+        if: steps.v.outputs.novo_iptu != '' && github.ref == 'refs/heads/main'
+        run: |
+          t="IPTU ${{ steps.v.outputs.novo_iptu }} disponível no GeoSampa"
+          n=$(gh issue list --state open --search "\"$t\" in:title" --json number --jq length)
+          if [ "$n" = "0" ]; then
+            gh issue create --title "$t" --body "O GeoSampa publicou o IPTU ${{ steps.v.outputs.novo_iptu }}. O pipeline continua usando o ano definido em IPTU_ANO (pipeline/camadas.py). Trocar de ano pede revisão: o formato do arquivo pode ter mudado, e os textos do site citam o ano."
+          fi
+
+  gera:
+    needs: verifica
+    if: needs.verifica.outputs.mudou == 'true' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.forcar)
+    runs-on: ubuntu-latest
     timeout-minutes: 350
+    permissions:
+      contents: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,10 +117,11 @@ jobs:
           key: geosampa-${{ github.run_id }}
           restore-keys: geosampa-
 
+      # as fontes que mudaram saem do cache e são baixadas de novo
       - name: Pipeline (96 distritos)
         id: pipeline
         timeout-minutes: 280
-        run: python pipeline/camadas.py --todos
+        run: python pipeline/camadas.py --todos --renova ${{ needs.verifica.outputs.renovar }}
 
       - name: Guarda downloads
         if: always()
@@ -81,7 +154,25 @@ jobs:
           echo "### Tamanho dos blocos" >> "$GITHUB_STEP_SUMMARY"
           ls -la tiles >> "$GITHUB_STEP_SUMMARY"
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: verificacao
+          path: pipeline/saida
+
+      - name: Controles de qualidade
+        id: controle
+        run: |
+          gh release download dados --pattern linha_de_base.json --dir anterior || echo "sem linha de base anterior"
+          case "${{ github.event_name }}" in
+            schedule) motivo="Verificação mensal: fontes mudaram no GeoSampa." ;;
+            push) motivo="Mudança no código do pipeline." ;;
+            *) motivo="Execução manual." ;;
+          esac
+          python pipeline/controle.py --anterior anterior/linha_de_base.json --changelog CHANGELOG.md --motivo "$motivo"
+          cat pipeline/saida/controle.md >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: dados-gerados
           retention-days: 7
@@ -96,10 +187,34 @@ jobs:
       # só a main atualiza os dados do site
       - name: Guarda os dados na release "dados"
         if: github.ref == 'refs/heads/main'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           gh release view dados >/dev/null 2>&1 || gh release create dados --latest=false \
             --title "Dados do site" \
             --notes "Arquivos gerados pelo pipeline e usados pelo site; atualizados pelo workflow gera-dados."
-          gh release upload dados tiles/edificacoes.pmtiles distritos.json tombados.json hexagonos.json --clobber
+          gh release upload dados tiles/edificacoes.pmtiles distritos.json tombados.json hexagonos.json \
+            pipeline/saida/linha_de_base.json pipeline/saida/fontes_verificadas.json --clobber
+
+      - name: Registra no CHANGELOG
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "Dados atualizados em $(date +%Y-%m-%d)"
+          git pull --rebase
+          git push
+
+      - name: Abre uma issue explicando a falha
+        if: failure() && github.ref == 'refs/heads/main'
+        run: |
+          t="Atualização dos dados não publicada"
+          url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ -f pipeline/saida/controle.md ] && [ "${{ steps.controle.outcome }}" = "failure" ]; then
+            corpo="$(cat pipeline/saida/controle.md)"
+          else
+            corpo="O workflow falhou antes dos controles de qualidade (por exemplo, o GeoSampa fora do ar)."
+          fi
+          [ -f pipeline/saida/mudancas.md ] && corpo="$corpo"$'\n\n'"$(cat pipeline/saida/mudancas.md)"
+          corpo="$corpo"$'\n\n'"O site continua com os dados anteriores. Detalhes: $url"
+          n=$(gh issue list --state open --search "\"$t\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$n" ]; then gh issue comment "$n" --body "$corpo"; else gh issue create --title "$t" --body "$corpo"; fi
