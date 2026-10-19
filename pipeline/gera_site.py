@@ -156,6 +156,75 @@ def tombados(destino=RAIZ / 'tombados.json'):
     print(f'{destino.name}: {len(out)} bens, {len(s.encode()) / 1e6:.2f} MB')
 
 
+def hexagonos(destino=RAIZ / 'hexagonos.json', raio=150):
+    """Malha de hexágonos (raio em metros, topo plano, EPSG:31983) para a vista intermediária da cidade.
+
+    Por hexágono: centro, nº de edificações, ano médio (exibido: histórico ou IPTU), sem ano,
+    densidade construída (área construída do IPTU / área do hexágono; a área de cada lote é
+    dividida igualmente entre as suas edificações), contagem por década para a linha do tempo,
+    tombadas, com 20 pavimentos ou mais e contagem por uso (índice na lista 'usos', como no distritos.json).
+    """
+    hist = historicos()
+    DEC = list(range(1900, 2030, 10))           # <1900, 1900s, ..., 2020s
+    partes = []
+    for arq in sorted((CACHE / 'processado').glob('*_edificacoes.parquet')):
+        cd = arq.name[:2]
+        E = gpd.read_parquet(arq, columns=['geometry', 'ckey', 'ano_min', 'area', 'tomb', 'pav', 'uso'])
+        y = E.ano_min.to_numpy().copy()
+        for (d, i), (ano, _) in hist.items():
+            if d == cd:
+                y[i] = ano
+        # área do lote repartida entre as edificações do mesmo lote (sem lote: 0)
+        nl = E.groupby('ckey').ckey.transform('size')
+        a = (E['area'].fillna(0) / nl).fillna(0).to_numpy()   # E.area seria a área do polígono
+        c = E.geometry.centroid
+        partes.append(pd.DataFrame({'x': c.x.to_numpy(), 'y': c.y.to_numpy(), 'ano': y, 'a': a,
+                                    'tomb': (E.tomb >= 0).to_numpy(), 'p20': (E.pav >= 20).to_numpy(), 'uso': E.uso.fillna('').to_numpy()}))
+    P = pd.concat(partes, ignore_index=True)
+    USOS = sorted(P.uso.unique())
+    P['iu'] = P.uso.map({u: i for i, u in enumerate(USOS)})
+    # coordenadas axiais do hexágono de topo plano + arredondamento cúbico
+    q = (2 / 3 * P.x) / raio
+    r = (-1 / 3 * P.x + np.sqrt(3) / 3 * P.y) / raio
+    s = -q - r
+    rq, rr, rs = np.round(q), np.round(r), np.round(s)
+    dq, dr, ds = (rq - q).abs(), (rr - r).abs(), (rs - s).abs()
+    fq = (dq > dr) & (dq > ds)
+    fr = ~fq & (dr > ds)
+    rq = np.where(fq, -rr - rs, rq)
+    rr = np.where(fr, -rq - rs, rr)
+    P['q'], P['r'] = rq.astype(int), rr.astype(int)
+    P['dec'] = np.where(P.ano > 0, np.searchsorted(DEC, P.ano, side='right'), -1)
+    com = P[P.ano > 0]
+    g = P.groupby(['q', 'r'])
+    H = pd.DataFrame({'n': g.size(), 'a': g.a.sum(), 'sem': g.ano.apply(lambda v: int((v == 0).sum()))})
+    H['ano'] = com.groupby(['q', 'r']).ano.mean()
+    extra = pd.DataFrame({'tomb': g.tomb.sum(), 'p20': g.p20.sum()})
+    usos = P.groupby(['q', 'r', 'iu']).size()
+    usos_hex = {k: [] for k in H.index}
+    for (q_, r_, iu), n_ in usos.items():
+        usos_hex[(q_, r_)].append([int(iu), int(n_)])
+    dec = com.groupby(['q', 'r', 'dec']).size().unstack(fill_value=0).reindex(columns=range(len(DEC) + 1), fill_value=0)
+    H = H.join(dec).fillna({k: 0 for k in dec.columns}).reset_index()
+    area_hex = 3 * np.sqrt(3) / 2 * raio ** 2
+    cx = raio * 1.5 * H.q
+    cy = raio * np.sqrt(3) * (H.r + H.q / 2)
+    ll = gpd.GeoSeries(gpd.points_from_xy(cx, cy), crs=31983).to_crs(4326)
+    linhas = []
+    for row, p in zip(H.itertuples(index=False), ll):
+        hx = (row.q, row.r)
+        linhas.append([round(p.x, 5), round(p.y, 5), int(row.n), None if row.ano != row.ano else round(row.ano, 1),
+                       int(row.sem), round(row.a / area_hex, 3), [int(row[6 + k]) for k in range(len(DEC) + 1)],
+                       int(extra.tomb[hx]), int(extra.p20[hx]), usos_hex[hx]])
+    out = {'raio_m': raio, 'decadas': ['<1900'] + [f'{d}s' for d in DEC], 'usos': USOS,
+           'campos': ['lon', 'lat', 'edificacoes', 'ano_medio', 'sem_ano', 'densidade_construida', 'por_decada',
+                      'tombadas', 'pav_20_ou_mais', 'usos'],
+           'hexagonos': linhas}
+    s = json.dumps(out, separators=(',', ':'))
+    destino.write_text(s, encoding='utf-8')
+    print(f'{destino.name}: {len(linhas):,} hexágonos de {raio} m, {int(H.n.sum()):,} edificações, {len(s.encode()) / 1e6:.2f} MB'.replace(',', '.'))
+
+
 def quadras(destino=CACHE / 'tiles' / 'quadras.geojsonl'):
     """Quadras viárias (chão do mapa ao aproximar), uma vez cada."""
     destino.parent.mkdir(parents=True, exist_ok=True)
@@ -207,4 +276,4 @@ def tiles(destino=CACHE / 'tiles' / 'edificacoes.geojsonl'):
 
 
 if __name__ == '__main__':
-    {'distritos': distritos, 'tombados': tombados, 'tiles': tiles}[sys.argv[1]]()
+    {'distritos': distritos, 'tombados': tombados, 'tiles': tiles, 'hexagonos': hexagonos}[sys.argv[1]]()

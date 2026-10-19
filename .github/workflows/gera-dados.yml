@@ -1,16 +1,19 @@
 # Roda o pipeline completo e gera os blocos de mapa (PMTiles) com o tippecanoe.
-# Por enquanto só produz arquivos para conferência (artefato); não publica nada.
+# Na main, guarda os resultados na release "dados", de onde o workflow publica-site.yml
+# monta o site; nas outras branches só produz arquivos para conferência (artefato).
 name: Gera dados e blocos de mapa
 
 on:
   workflow_dispatch:
   push:
-    branches: [pipeline-etapa3]
+    branches: [main, pipeline-etapa3]
     paths: ['pipeline/**', '.github/workflows/gera-dados.yml']
 
 jobs:
   gera:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +64,7 @@ jobs:
           python pipeline/resumo.py
           python pipeline/gera_site.py distritos
           python pipeline/gera_site.py tombados
+          python pipeline/gera_site.py hexagonos
 
       - name: Entrada dos blocos
         run: python pipeline/gera_site.py tiles
@@ -85,5 +89,17 @@ jobs:
             tiles/edificacoes.pmtiles
             distritos.json
             tombados.json
+            hexagonos.json
             pipeline/saida/
             pipeline/cache/fontes.json
+
+      # só a main atualiza os dados do site
+      - name: Guarda os dados na release "dados"
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view dados >/dev/null 2>&1 || gh release create dados --latest=false \
+            --title "Dados do site" \
+            --notes "Arquivos gerados pelo pipeline e usados pelo site; atualizados pelo workflow gera-dados."
+          gh release upload dados tiles/edificacoes.pmtiles distritos.json tombados.json hexagonos.json --clobber
