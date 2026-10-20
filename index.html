@@ -335,10 +335,10 @@ const PERIODS=[
 const UNKNOWN=[166,162,154];
 /* 0 preciso, 1 1970, 2 faixa de 5 anos, 3 sem ano, 4 volume estimado, 5 sem ano em favela/loteamento/ZEIS-1 */
 const Q_COLORS=[[176,182,188],[214,58,46],[236,160,44],[88,88,92],[124,92,196],[38,150,170]];
-/* prédios a partir do zoom 13,5 (blocos do nível 15, completos); no celular a tela menor pede menos blocos,
-   e os limites de download e memória ficam mais baixos (ver MVTLayer) */
+/* prédios a partir do zoom 13 no computador e 13,5 no celular (sempre com os blocos do nível 15, completos);
+   o zoom 13 pede cerca do dobro de dados, e no celular os limites de download e memória são mais baixos (ver MVTLayer) */
 const DESKTOP=matchMedia('(min-width: 900px) and (pointer: fine)').matches;
-const NO_YEAR=2100, BUILD_Z=13.5, DIST_H=3000;
+const NO_YEAR=2100, BUILD_Z=DESKTOP?13:13.5, DIST_H=3000;
 /* centro histórico (região Centro, 8 distritos): são só 56 blocos (cerca de 5 MB), então ali os prédios aparecem mais de longe */
 const CENTRO_Z=DESKTOP?12:12.5;
 let CENTRO=new Set(), CENTRO_BB=null;
@@ -538,9 +538,11 @@ function geomRings(g){ return g.type==='Polygon'?[g.coordinates]:g.coordinates; 
 function outlines(){ const out=[]; for(const f of D) for(const poly of geomRings(f.geometry)) out.push({cd:f.properties.cd,path:poly[0]}); return out; }
 let OUTL=[];
 /* centro=true: só os prédios dos distritos do centro, pedindo só os blocos do retângulo do centro
-   (o mesmo id 'b' nas duas vistas, então os blocos já baixados continuam no cache) */
+   (o mesmo id 'b' nas duas vistas, então os blocos já baixados continuam no cache)
+   o deck.gl arredonda o zoom: entre 13 e 13,5 o deslocamento 2 ainda pede os blocos z15, os únicos completos */
 function bLayer(centro){
-  return new deck.MVTLayer({id:'b',data:'pmtiles://{z}/{x}/{y}',fetch:pmFetch,minZoom:15,maxZoom:16,zoomOffset:1,binary:true,extent:centro?CENTRO_BB:null,
+  const off=!centro&&view.zoom<13.5?2:1;
+  return new deck.MVTLayer({id:'b',data:'pmtiles://{z}/{x}/{y}',fetch:pmFetch,minZoom:15,maxZoom:16,zoomOffset:off,binary:true,extent:centro?CENTRO_BB:null,
     extruded:true,stroked:false,pickable:true,autoHighlight:true,highlightColor:[255,255,255,110],
     getElevation:f=>isQ(f)?0:f.properties.h,getFillColor:bColor,
     material:{ambient:.5,diffuse:.6,shininess:12,specularColor:[30,28,24]},
