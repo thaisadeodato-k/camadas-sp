@@ -1,6 +1,22 @@
 # Histórico de mudanças
 As atualizações mensais dos dados são registradas aqui automaticamente pelo workflow `gera-dados.yml`; as mudanças no site e no método, à mão.
 
+## 2026-10-20: dados atualizados
+
+Mudança no código do pipeline.
+
+Fontes que mudaram:
+
+- **lote_cidadao**: feicoes: 1688001 → 1688012
+
+Resultado:
+
+- Lotes ligados ao IPTU: 98,1% na cidade; 0 distrito(s) abaixo de 90%.
+- Distritos: 96.
+- Edificações: 2.789.795 → 2.789.796 (+0,00%).
+- Com ano no IPTU: 89,5% → 89,5%.
+- Distritos que mais mudaram: BELA VISTA (5.658 → 5.659).
+
 ## 2026-10-20: prédios vistos de longe
 
 - No computador, os prédios aparecem a partir do zoom 13 (antes 13,5), com todos os detalhes.
