@@ -1,6 +1,11 @@
 # Histórico de mudanças
 As atualizações mensais dos dados são registradas aqui automaticamente pelo workflow `gera-dados.yml`; as mudanças no site e no método, à mão.
 
+## 2026-10-20: prédios vistos de longe
+
+- No computador, os prédios aparecem a partir do zoom 13 (antes 13,5), com todos os detalhes.
+- No computador, de mais longe ainda (zoom 11,5), todas as edificações aparecem simplificadas, de um arquivo de blocos à parte (`edificacoes_longe.pmtiles`, cerca de 33 MB para a cidade inteira).
+
 ## 2026-10-19: dados atualizados
 
 Mudança no código do pipeline.

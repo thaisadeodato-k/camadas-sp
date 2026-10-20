@@ -343,6 +343,10 @@ const NO_YEAR=2100, BUILD_Z=DESKTOP?13:13.5, DIST_H=3000;
 const CENTRO_Z=DESKTOP?12:12.5;
 let CENTRO=new Set(), CENTRO_BB=null;
 const centroView=z=>z>=CENTRO_Z&&z<BUILD_Z&&!!CENTRO_BB;
+/* vista de longe, só no computador: todas as edificações, simplificadas e só com cor e altura,
+   de um arquivo à parte (edificacoes_longe.pmtiles) com os blocos do nível 12, cerca de 33 MB para a cidade inteira */
+const LONGE_Z=DESKTOP?11.5:null;
+const longeView=z=>!!LONGE_Z&&z>=LONGE_Z&&z<BUILD_Z;
 /* qualidade do ano do IPTU (y0), não do ano exibido */
 function qualOf(p){ if(p.est) return 4; if(!p.y0) return (p.fav||p.lotirr||p.zeis)?5:3; if(p.y0===1970) return 1; if(p.y0<1960&&p.y0%5===4) return 2; return 0; }
 const yearOf=p=>p.yh||p.y0||0;
@@ -370,7 +374,7 @@ const I18N={
   city:"Cidade de São Paulo",district:"Distrito",clear_scope:"Voltar para a cidade inteira",
   zoom_more:"Aproxime para ver as edificações",zoom_btn:"Ver edificações",zoom_out:"Ver os 96 distritos",zoom_out_txt:"Você está vendo edificações",
   on_map:"No mapa",counts_of:"Edificações",today_totals:"Totais de hoje (não mudam com a linha do tempo).",
-  on_map_dist:"Distritos.",on_map_hex:"Hexágonos de {r} m (soma das edificações de cada um).",on_map_centro:"No centro histórico, as próprias edificações já aparecem.",
+  on_map_dist:"Distritos.",on_map_hex:"Hexágonos de {r} m (soma das edificações de cada um).",on_map_centro:"No centro histórico, as próprias edificações já aparecem.",on_map_longe:"As próprias edificações já aparecem, simplificadas; aproxime para ver os detalhes.",
   d_color_period:"Cor: ano médio de construção",d_height:"Altura: densidade construída (m² construídos por m² de território)",d_capped:"acima do limite da escala",scale_cap:"limite da escala",
   d_color_quality:"Cor: % de edificações sem ano no IPTU",d_color_heritage:"Cor: % de edificações tombadas",d_color_floors:"Cor: % de edificações com 20 pavimentos ou mais",d_color_use:"Cor: uso predominante (mais escura onde ele domina mais)",
   nodata:"Sem dados",nodata_txt:"O levantamento de edificações do GeoSampa não cobre este distrito. Ele aparece em cinza e sem altura.",
@@ -390,7 +394,7 @@ const I18N={
   city:"City of São Paulo",district:"District",clear_scope:"Back to the whole city",
   zoom_more:"Zoom in to see the buildings",zoom_btn:"See buildings",zoom_out:"See the 96 districts",zoom_out_txt:"You are looking at buildings",
   on_map:"On the map",counts_of:"Buildings",today_totals:"Today's totals (they don't change with the timeline).",
-  on_map_dist:"Districts.",on_map_hex:"{r} m hexagons (all buildings inside each one).",on_map_centro:"In the historic centre, the buildings themselves already show.",
+  on_map_dist:"Districts.",on_map_hex:"{r} m hexagons (all buildings inside each one).",on_map_centro:"In the historic centre, the buildings themselves already show.",on_map_longe:"The buildings themselves already show, simplified; zoom in for details.",
   d_color_period:"Colour: mean construction year",d_height:"Height: built density (built m² per m² of land)",d_capped:"above the scale limit",scale_cap:"scale limit",
   d_color_quality:"Colour: % of buildings with no year in the tax register",d_color_heritage:"Colour: % of listed buildings",d_color_floors:"Colour: % of buildings with 20 floors or more",d_color_use:"Colour: main use (darker where it dominates more)",
   nodata:"No data",nodata_txt:"GeoSampa's building survey does not cover this district. It is shown in grey and flat.",
@@ -500,11 +504,11 @@ function hexLayer(z,id,data,bz){ const a=hexIn(z)*hexOut(z,bz); if(a<=.01||!data
     getFillColor:h=>{ const c=hexColor(h); return [c[0],c[1],c[2],hexStanding(h)?Math.round(240*a*c[3]):0]; },
     material:{ambient:.55,diffuse:.55,shininess:8,specularColor:[30,28,24]},
     updateTriggers:{getFillColor:[mode,cutoff,Math.round(a*20)],getElevation:[cutoff]},transitions:{getElevation:{duration:250}}}); }
-const hexLayers=z=>[hexLayer(z,'hex',HEXR,BUILD_Z),hexLayer(z,'hexc',HEXC,CENTRO_Z)].filter(Boolean);
+const hexLayers=z=>[hexLayer(z,'hex',HEXR,LONGE_Z||BUILD_Z),hexLayer(z,'hexc',HEXC,Math.min(CENTRO_Z,LONGE_Z||CENTRO_Z))].filter(Boolean);
 const elevScale=z=>Math.min(1,Math.pow(2,10.4-z))*(1-nearT(z));
 
 /* ---------- edificações (PMTiles) ---------- */
-const PM=new pmtiles.PMTiles('tiles/edificacoes.pmtiles');
+const PM=new pmtiles.PMTiles('tiles/edificacoes.pmtiles'), PML=LONGE_Z?new pmtiles.PMTiles('tiles/edificacoes_longe.pmtiles'):null;
 /* o deck.gl traz o loaders.gl embutido (window.loaders); o MVTLoader vem em layer.props.loaders */
 /* fila própria: o deck.gl pede os blocos na ordem da grade; aqui sai primeiro o mais perto do centro da tela */
 const PM_SLOTS=DESKTOP?8:4, pmQ=[]; let pmBusy=0;
@@ -514,13 +518,13 @@ function pmNext(){
     let bi=0, bd=Infinity;
     for(let i=0;i<pmQ.length;i++){ const t=pmQ[i], n=2**t.z, cx=(v.longitude+180)/360*n, cy=(.5-Math.log((1+s)/(1-s))/(4*Math.PI))*n, d=(t.x+.5-cx)**2+(t.y+.5-cy)**2; if(d<bd){ bd=d; bi=i; } }
     const t=pmQ.splice(bi,1)[0]; pmBusy++;
-    PM.getZxy(t.z,t.x,t.y,t.signal).then(t.ok,t.err).finally(()=>{ pmBusy--; pmNext(); });
+    t.pm.getZxy(t.z,t.x,t.y,t.signal).then(t.ok,t.err).finally(()=>{ pmBusy--; pmNext(); });
   } }
-function pmGet(z,x,y,signal){ return new Promise((ok,err)=>{ const t={z,x,y,signal,ok,err}; pmQ.push(t);
+function pmGet(pm,z,x,y,signal){ return new Promise((ok,err)=>{ const t={pm,z,x,y,signal,ok,err}; pmQ.push(t);
   if(signal) signal.addEventListener('abort',()=>{ const i=pmQ.indexOf(t); if(i>=0){ pmQ.splice(i,1); err(new DOMException('aborted','AbortError')); } },{once:true});
   pmNext(); }); }
 async function pmFetch(url,{layer,loaders:ld,loadOptions,signal}){ const [z,x,y]=url.split('/').slice(-3).map(Number);
-  const r=await pmGet(z,x,y,signal); if(!r||!r.data) return null;
+  const r=await pmGet(layer.id==='bl'?PML:PM,z,x,y,signal); if(!r||!r.data) return null;
   return loaders.parse(r.data,ld||layer.props.loaders,loadOptions||layer.getLoadOptions()); }
 const isQ=f=>f.properties.layerName==='quadras';
 function bColor(f){ const p=f.properties; if(isQ(f)) return BLOCK_C;
@@ -552,6 +556,17 @@ function bLayer(centro){
     maxRequests:DESKTOP?64:32,maxCacheByteSize:DESKTOP?300e6:80e6,refinementStrategy:'no-overlap',
     updateTriggers:{getFillColor:[mode,selPeriod,isDark()]},
     onTileError:e=>console.warn('bloco',e)}); }
+/* vista de longe: no centro histórico, quando ele já mostra os blocos completos, os prédios simplificados saem dali */
+function lLayer(){
+  return new deck.MVTLayer({id:'bl',data:'pmtiles://{z}/{x}/{y}',fetch:pmFetch,minZoom:12,maxZoom:12,binary:true,
+    extruded:true,stroked:false,pickable:true,autoHighlight:true,highlightColor:[255,255,255,110],
+    getElevation:f=>f.properties.h,getFillColor:bColor,
+    material:{ambient:.5,diffuse:.6,shininess:12,specularColor:[30,28,24]},
+    extensions:[new deck.DataFilterExtension({filterSize:2})],
+    getFilterValue:f=>[yearOf(f.properties)||NO_YEAR,CENTRO.has(f.properties.d)?1:0],filterRange:[[0,cutoff],[0,centroView(view.zoom)?0:1]],
+    maxRequests:64,maxCacheByteSize:300e6,refinementStrategy:'no-overlap',
+    updateTriggers:{getFillColor:[mode,selPeriod,isDark()]},
+    onTileError:e=>console.warn('bloco',e)}); }
 function pickLayer(){ return picked&&(yearOf(picked.properties)||NO_YEAR)<=cutoff?new deck.GeoJsonLayer({id:'pick',data:[picked],extruded:true,getElevation:f=>f.properties.h+0.4,getFillColor:[255,255,255,255],material:{ambient:.8,diffuse:.4}}):null; }
 function layers(){
   const z=view.zoom, city=z<BUILD_Z, dark=isDark(), lineC=hex(css('--muted')||'#6e6e73'), acc=hex(css('--accent')||'#0071e3');
@@ -563,6 +578,7 @@ function layers(){
       material:{ambient:.55,diffuse:.55,shininess:8,specularColor:[30,28,24]},
       updateTriggers:{getFillColor:[mode,dark,Math.round(nearT(z)*20)],getElevation:[cutoff]},transitions:{getElevation:{duration:250}}}));
     L.push(...hexLayers(z));
+    if(longeView(z)) L.push(lLayer());
     if(centroView(z)){ L.push(bLayer(true)); const pk=pickLayer(); if(pk) L.push(pk); }
     L.push(new deck.PathLayer({id:'distline',data:OUTL,getPath:d=>d.path,getColor:d=>d.cd===scopeCd?[...acc,255]:[...lineC,dark?90:70],getWidth:d=>d.cd===scopeCd?3:1,widthUnits:'pixels',updateTriggers:{getColor:[scopeCd,dark],getWidth:[scopeCd]}}));
   } else {
@@ -602,7 +618,7 @@ function renderLegend(){
   h+=`<div class="scope"><span>${P?esc(P.nome):T('city')}</span>${P?`<button id="clearScope" aria-label="${T('clear_scope')}" title="${T('clear_scope')}"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>`:''}</div>`;
   if(city){
     const HX=hexView(view.zoom)&&HEX.length;
-    h+=`<h3>${T('on_map')}</h3><p class="hint" style="margin:0 0 6px">${HX?T('on_map_hex').replace('{r}',fmt(HEX_R)):T('on_map_dist')}${centroView(view.zoom)?' '+T('on_map_centro'):''}</p>`;
+    h+=`<h3>${T('on_map')}</h3><p class="hint" style="margin:0 0 6px">${HX?T('on_map_hex').replace('{r}',fmt(HEX_R)):T('on_map_dist')}${longeView(view.zoom)?' '+T('on_map_longe'):centroView(view.zoom)?' '+T('on_map_centro'):''}</p>`;
     if(mode==='period') h+=`<p class="hint" style="margin-top:0">${T('d_color_period')}</p><div class="ramp" style="background:${rampCss(YEAR_RAMP.filter(s=>s[0]>=1955&&s[0]<=2007),1960,2005)}"></div><div class="ramp-lab"><span>1960</span><span>1975</span><span>1990</span><span>2005</span></div>`;
     else if(mode==='use'){ h+=`<p class="hint" style="margin-top:0">${T('d_color_use')}</p>`; }
     else { const cap=HX?CAP['h'+mode]:CAP[mode]; const st=mode==='floors'?FLOOR_STOPS.map(([f,c],i)=>[i/(FLOOR_STOPS.length-1)*cap,c]):(mode==='quality'?Q_RAMP:H_RAMP).map(([v,c])=>[v*cap,c]);
@@ -768,9 +784,9 @@ function inRing(p,r){ let c=false; for(let i=0,j=r.length-1;i<r.length;j=i++){ c
 function districtAt(pt){ for(const f of D) for(const poly of geomRings(f.geometry)) if(inRing(pt,poly[0])&&!poly.slice(1).some(h=>inRing(pt,h))) return f.properties.cd; return null; }
 let followT=null, wasCity=null, wasHex=null, wasCentro=null;
 function onView(vs){
-  view=vs; const city=vs.zoom<BUILD_Z, hx=hexView(vs.zoom), ce=centroView(vs.zoom);
-  if(city!==wasCity){ wasCity=city; wasHex=hx; wasCentro=ce; if(city&&!ce){ picked=null; } renderLegend(); updateZoomHint(); }
-  else if(hx!==wasHex||ce!==wasCentro){ wasHex=hx; wasCentro=ce; if(!ce&&city) picked=null; renderLegend(); }
+  view=vs; const city=vs.zoom<BUILD_Z, hx=hexView(vs.zoom), ce=centroView(vs.zoom)+'|'+longeView(vs.zoom);
+  if(city!==wasCity){ wasCity=city; wasHex=hx; wasCentro=ce; if(city&&!centroView(vs.zoom)){ picked=null; } renderLegend(); updateZoomHint(); }
+  else if(hx!==wasHex||ce!==wasCentro){ wasHex=hx; wasCentro=ce; if(!centroView(vs.zoom)&&city) picked=null; renderLegend(); }
   refresh();
   /* aproximado: a legenda acompanha o distrito no centro do mapa */
   if(!city){ clearTimeout(followT); followT=setTimeout(()=>{ const cd=districtAt([vs.longitude,vs.latitude]); if(cd&&cd!==scopeCd){ scopeCd=cd; const c=document.getElementById('card'); if(!picked&&c.querySelector('.dname')) c.hidden=true; updateYear(); renderLegend(); drawHist(); } },250); }
@@ -970,6 +986,7 @@ function init(){
       if(!o){ if(view.zoom>=BUILD_Z) closeCard(); return; }
       if(id==='dist3d'){ setScope(o.properties.cd); return; }
       if(id==='hex'||id==='hexc'){ flyTo({longitude:o[0],latitude:o[1],zoom:BUILD_Z+1.6,pitch:52,bearing:view.bearing}); return; }
+      if(id==='bl'){ flyTo({longitude:info.coordinate[0],latitude:info.coordinate[1],zoom:BUILD_Z+1.6,pitch:52,bearing:view.bearing}); return; }
       if(id==='lm'){ picked=null; showLandmark(o); refresh(); return; }
       if(id&&id.startsWith('b')&&o.properties&&o.properties.layerName!=='quadras'){ picked=o; showBuilding(o); refresh(); }
     },
@@ -983,7 +1000,7 @@ function init(){
       if(layer.id==='hex'||layer.id==='hexc'){ const h=object, pct=v=>`${fmt(v,1)}%`;
         const extra=mode==='quality'?`${T('no_year')}: ${fmt(h[4])} (${pct(hexMetric(h))})`:mode==='heritage'?`${T('tombadas')}: ${fmt(h[7])} (${pct(hexMetric(h))})`:mode==='floors'?`${lang==='pt'?'20+ pavimentos':'20+ floors'}: ${fmt(h[8])} (${pct(hexMetric(h))})`:mode==='use'?`${T('uses')[h[10].indexOf(Math.max(...h[10]))]}: ${pct(100*Math.max(...h[10])/h[2])}`:`${T('mean_y')}: ${fy(h[3])}`;
         return {text:`${fmt(h[2])} ${T('bld')}\n${extra}\n${T('density')}: ${fmt(h[5],2)} m²/m²${h[5]>CAP.hex*1.001?` (${T('d_capped')}: ${fmt(CAP.hex,2)})`:''}`,style:st}; }
-      if(object.properties&&object.properties.layerName==='edificacoes'){ const p=object.properties; return {text:`${yearOf(p)||'—'} · ${p.addr||''}`,style:st}; }
+      if(object.properties&&object.properties.layerName==='edificacoes'){ const p=object.properties; return {text:`${yearOf(p)||'—'}${p.addr?' · '+p.addr:''}`,style:st}; }
       return null; }
   });
   ticks(); applyLang(); setPlayIcon(false); requestAnimationFrame(drawHist);

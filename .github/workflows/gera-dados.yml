@@ -16,7 +16,7 @@ on:
         type: boolean
         default: true
   push:
-    branches: [main, pipeline-etapa3, longe]
+    branches: [main, pipeline-etapa3]
     paths: ['pipeline/**', '.github/workflows/gera-dados.yml']
 
 # uma execução por vez, para duas não gravarem a release ao mesmo tempo
@@ -206,7 +206,7 @@ jobs:
           gh release view dados >/dev/null 2>&1 || gh release create dados --latest=false \
             --title "Dados do site" \
             --notes "Arquivos gerados pelo pipeline e usados pelo site; atualizados pelo workflow gera-dados."
-          gh release upload dados tiles/edificacoes.pmtiles distritos.json tombados.json hexagonos.json \
+          gh release upload dados tiles/edificacoes.pmtiles tiles/edificacoes_longe.pmtiles distritos.json tombados.json hexagonos.json \
             pipeline/saida/linha_de_base.json pipeline/saida/fontes_verificadas.json --clobber
 
       - name: Registra no CHANGELOG
