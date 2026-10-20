@@ -5,6 +5,17 @@ As atualizações mensais dos dados são registradas aqui automaticamente pelo w
 
 Mudança no código do pipeline.
 
+Resultado:
+
+- Lotes ligados ao IPTU: 98,1% na cidade; 0 distrito(s) abaixo de 90%.
+- Distritos: 96.
+- Edificações: 2.789.796 → 2.789.796 (+0,00%).
+- Com ano no IPTU: 89,5% → 89,5%.
+
+## 2026-10-20: dados atualizados
+
+Mudança no código do pipeline.
+
 Fontes que mudaram:
 
 - **lote_cidadao**: feicoes: 1688001 → 1688012
