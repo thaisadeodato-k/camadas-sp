@@ -342,13 +342,12 @@ const NO_YEAR=2100, BUILD_Z=DESKTOP?13:13.5, DIST_H=3000;
 /* centro histórico (região Centro, 8 distritos): são só 56 blocos (cerca de 5 MB), então ali os prédios aparecem mais de longe */
 const CENTRO_Z=DESKTOP?12:12.5;
 let CENTRO=new Set(), CENTRO_BB=null;
-/* vista de longe, só no computador: todas as edificações, simplificadas e só com cor e altura,
-   de um arquivo à parte (edificacoes_longe.pmtiles) com os blocos do nível 12, cerca de 33 MB para a cidade inteira;
-   ali ela substitui a vista do centro, e os hexágonos só se apagam depois que os blocos da tela chegaram (longeOk) */
-/* DESLIGADA: com a cidade inteira, o navegador travava de 6 a 11 s (contra 3 s da vista detalhada) e passava de 2 GB de memória */
-const LONGE_Z=null; let longeOk=false;
-const longeView=z=>!!LONGE_Z&&z>=LONGE_Z&&z<BUILD_Z;
-const centroView=z=>!LONGE_Z&&z>=CENTRO_Z&&z<BUILD_Z&&!!CENTRO_BB;
+/* vista de longe: cada quadra vira um volume com a altura média das suas edificações baixas, e as de 30 m ou mais ficam inteiras
+   (quadras_longe.bin, gera_site.py longe: um arquivo só, baixado na primeira aproximação; os hexágonos só se apagam depois que ele chega)
+   no centro, onde as próprias edificações aparecem a partir de CENTRO_Z, os volumes saem dali */
+const LONGE_Z=12; let QL=null, qlPedido=false;
+const longeView=z=>!!QL&&z>=LONGE_Z&&z<BUILD_Z;
+const centroView=z=>z>=CENTRO_Z&&z<BUILD_Z&&!!CENTRO_BB;
 /* qualidade do ano do IPTU (y0), não do ano exibido */
 function qualOf(p){ if(p.est) return 4; if(!p.y0) return (p.fav||p.lotirr||p.zeis)?5:3; if(p.y0===1970) return 1; if(p.y0<1960&&p.y0%5===4) return 2; return 0; }
 const yearOf=p=>p.yh||p.y0||0;
@@ -376,7 +375,7 @@ const I18N={
   city:"Cidade de São Paulo",district:"Distrito",clear_scope:"Voltar para a cidade inteira",
   zoom_more:"Aproxime para ver as edificações",zoom_btn:"Ver edificações",zoom_out:"Ver os 96 distritos",zoom_out_txt:"Você está vendo edificações",
   on_map:"No mapa",counts_of:"Edificações",today_totals:"Totais de hoje (não mudam com a linha do tempo).",
-  on_map_dist:"Distritos.",on_map_hex:"Hexágonos de {r} m (soma das edificações de cada um).",on_map_centro:"No centro histórico, as próprias edificações já aparecem.",on_map_longe:"As próprias edificações já aparecem, simplificadas; aproxime para ver os detalhes.",
+  on_map_dist:"Distritos.",on_map_hex:"Hexágonos de {r} m (soma das edificações de cada um).",on_map_centro:"No centro histórico, as próprias edificações já aparecem.",on_map_longe:"Cada quadra aparece como um volume, com a altura média das suas edificações e a cor do ano médio, ou do valor que predomina; as edificações de 30 m ou mais aparecem inteiras. Na linha do tempo, o volume cresce com a parte da quadra já construída, e a cor segue essa parte. Aproxime para ver cada edificação.",
   d_color_period:"Cor: ano médio de construção",d_height:"Altura: densidade construída (m² construídos por m² de território)",d_capped:"acima do limite da escala",scale_cap:"limite da escala",
   d_color_quality:"Cor: % de edificações sem ano no IPTU",d_color_heritage:"Cor: % de edificações tombadas",d_color_floors:"Cor: % de edificações com 20 pavimentos ou mais",d_color_use:"Cor: uso predominante (mais escura onde ele domina mais)",
   nodata:"Sem dados",nodata_txt:"O levantamento de edificações do GeoSampa não cobre este distrito. Ele aparece em cinza e sem altura.",
@@ -396,7 +395,7 @@ const I18N={
   city:"City of São Paulo",district:"District",clear_scope:"Back to the whole city",
   zoom_more:"Zoom in to see the buildings",zoom_btn:"See buildings",zoom_out:"See the 96 districts",zoom_out_txt:"You are looking at buildings",
   on_map:"On the map",counts_of:"Buildings",today_totals:"Today's totals (they don't change with the timeline).",
-  on_map_dist:"Districts.",on_map_hex:"{r} m hexagons (all buildings inside each one).",on_map_centro:"In the historic centre, the buildings themselves already show.",on_map_longe:"The buildings themselves already show, simplified; zoom in for details.",
+  on_map_dist:"Districts.",on_map_hex:"{r} m hexagons (all buildings inside each one).",on_map_centro:"In the historic centre, the buildings themselves already show.",on_map_longe:"Each city block shows as one volume, with the mean height of its buildings and the colour of their mean year, or of the prevailing value; buildings 30 m or taller show individually. On the timeline, each volume grows with the share of the block already built, and its colour follows that share. Zoom in to see every building.",
   d_color_period:"Colour: mean construction year",d_height:"Height: built density (built m² per m² of land)",d_capped:"above the scale limit",scale_cap:"scale limit",
   d_color_quality:"Colour: % of buildings with no year in the tax register",d_color_heritage:"Colour: % of listed buildings",d_color_floors:"Colour: % of buildings with 20 floors or more",d_color_use:"Colour: main use (darker where it dominates more)",
   nodata:"No data",nodata_txt:"GeoSampa's building survey does not cover this district. It is shown in grey and flat.",
@@ -506,12 +505,12 @@ function hexLayer(z,id,data,bz){ const a=hexIn(z)*hexOut(z,bz); if(a<=.01||!data
     getFillColor:h=>{ const c=hexColor(h); return [c[0],c[1],c[2],hexStanding(h)?Math.round(240*a*c[3]):0]; },
     material:{ambient:.55,diffuse:.55,shininess:8,specularColor:[30,28,24]},
     updateTriggers:{getFillColor:[mode,cutoff,Math.round(a*20)],getElevation:[cutoff]},transitions:{getElevation:{duration:250}}}); }
-function hexLayers(z){ const bz=LONGE_Z&&longeOk?LONGE_Z:BUILD_Z;
-  return [hexLayer(z,'hex',HEXR,bz),hexLayer(z,'hexc',HEXC,LONGE_Z?bz:CENTRO_Z)].filter(Boolean); }
+function hexLayers(z){ const bz=QL?LONGE_Z:BUILD_Z;
+  return [hexLayer(z,'hex',HEXR,bz),hexLayer(z,'hexc',HEXC,Math.min(bz,CENTRO_Z))].filter(Boolean); }
 const elevScale=z=>Math.min(1,Math.pow(2,10.4-z))*(1-nearT(z));
 
 /* ---------- edificações (PMTiles) ---------- */
-const PM=new pmtiles.PMTiles('tiles/edificacoes.pmtiles'), PML=LONGE_Z?new pmtiles.PMTiles('tiles/edificacoes_longe.pmtiles'):null;
+const PM=new pmtiles.PMTiles('tiles/edificacoes.pmtiles');
 /* o deck.gl traz o loaders.gl embutido (window.loaders); o MVTLoader vem em layer.props.loaders */
 /* fila própria: o deck.gl pede os blocos na ordem da grade; aqui sai primeiro o mais perto do centro da tela */
 const PM_SLOTS=DESKTOP?8:4, pmQ=[]; let pmBusy=0;
@@ -527,7 +526,7 @@ function pmGet(pm,z,x,y,signal){ return new Promise((ok,err)=>{ const t={pm,z,x,
   if(signal) signal.addEventListener('abort',()=>{ const i=pmQ.indexOf(t); if(i>=0){ pmQ.splice(i,1); err(new DOMException('aborted','AbortError')); } },{once:true});
   pmNext(); }); }
 async function pmFetch(url,{layer,loaders:ld,loadOptions,signal}){ const [z,x,y]=url.split('/').slice(-3).map(Number);
-  const r=await pmGet(layer.id==='bl'?PML:PM,z,x,y,signal); if(!r||!r.data) return null;
+  const r=await pmGet(PM,z,x,y,signal); if(!r||!r.data) return null;
   return loaders.parse(r.data,ld||layer.props.loaders,loadOptions||layer.getLoadOptions()); }
 const isQ=f=>f.properties.layerName==='quadras';
 function bColor(f){ const p=f.properties; if(isQ(f)) return BLOCK_C;
@@ -559,18 +558,40 @@ function bLayer(centro){
     maxRequests:DESKTOP?64:32,maxCacheByteSize:DESKTOP?300e6:80e6,refinementStrategy:'no-overlap',
     updateTriggers:{getFillColor:[mode,selPeriod,isDark()]},
     onTileError:e=>console.warn('bloco',e)}); }
-/* vista de longe: no centro histórico, quando ele já mostra os blocos completos, os prédios simplificados saem dali */
-function lLayer(){
-  return new deck.MVTLayer({id:'bl',data:'pmtiles://{z}/{x}/{y}',fetch:pmFetch,minZoom:12,maxZoom:12,binary:true,
-    extruded:true,stroked:false,pickable:true,autoHighlight:true,highlightColor:[255,255,255,110],
-    getElevation:f=>f.properties.h,getFillColor:bColor,
+/* ---------- vista de longe (quadras_longe.bin) ----------
+   cabeçalho JSON e vetores: contornos em uint16 dentro do retângulo da cidade, e um valor por volume */
+async function qlLoad(){ qlPedido=true;
+  try{ const b=await (await fetch('quadras_longe.bin')).arrayBuffer(), hl=new DataView(b).getUint32(0,true);
+    const cab=JSON.parse(new TextDecoder().decode(new Uint8Array(b,4,hl))), TA={uint32:Uint32Array,uint16:Uint16Array,uint8:Uint8Array}, v={};
+    let o=4+hl; for(const [k,t,n] of cab.vetores){ v[k]=new TA[t](b,o,n); o+=Math.ceil(n*TA[t].BYTES_PER_ELEMENT/4)*4; }
+    const [x0,y0,x1,y1]=cab.bbox, pos=new Float32Array(v.xy.length);
+    for(let i=0;i<pos.length;i+=2){ pos[i]=x0+v.xy[i]/65535*(x1-x0); pos[i+1]=y0+v.xy[i+1]/65535*(y1-y0); }
+    QL={...v,n:cab.volumes,cd:Array.from(v.distrito,d=>String(d).padStart(2,'0')),
+      data:{length:cab.volumes,startIndices:v.inicio,attributes:{getPolygon:{value:pos,size:2}}}}; renderLegend(); refresh();
+  }catch(e){ console.warn('quadras',e); } }
+/* parte das edificações datadas de cada volume já de pé no ano da linha do tempo (pelos anos de 0, 25, 50, 75 e 100%) */
+function qlShare(i){ if(cutoff>=NO_YEAR) return 1; const a=QL.anos_quartis, k=i*5; if(!a[k]||a[k]>cutoff) return 0;
+  for(let j=1;j<5;j++){ const y=a[k+j]; if(y>cutoff){ const p=a[k+j-1]; return (j-1+(cutoff-p)/(y-p))/4; } } return 1; }
+/* ano em que a parte f das edificações datadas do volume já existia (o inverso de qlShare) */
+function qlYearAt(i,f){ const a=QL.anos_quartis, k=i*5, j=Math.min(3,Math.floor(f*4)); return a[k+j]+(a[k+j+1]-a[k+j])*(f*4-j); }
+/* na linha do tempo, a cor do período segue só a parte já construída (o ano mediano dela); em "Hoje", o ano médio */
+function qlColor(_,{index:i}){ let c;
+  if(mode==='period'){ const sh=cutoff<NO_YEAR?qlShare(i):0, per=periodOf(sh?Math.round(qlYearAt(i,sh/2)):QL.ano_medio[i]); c=per?per.color:UNKNOWN; if(selPeriod!==null&&(!per||per.id!==selPeriod)) return [c[0],c[1],c[2],40]; }
+  else if(mode==='heritage') c=QL.tomb[i]?[200,64,42]:[205,201,192];
+  else if(mode==='floors') c=floorColor(QL.pav[i]);
+  else if(mode==='quality') c=Q_COLORS[QL.qualidade[i]];
+  else c=USE_COLORS[QL.uso[i]];
+  return [c[0],c[1],c[2],255]; }
+const qlElev=(_,{index:i})=>QL.h_dm[i]/10*qlShare(i), qlFilter=(_,{index:i})=>[QL.anos_quartis[i*5]||NO_YEAR,CENTRO.has(QL.cd[i])?1:0];
+/* a altura cresce com a parte já de pé, como nos hexágonos; QL.data é sempre o mesmo objeto, para o deck.gl não refazer os contornos a cada quadro */
+function qLayer(){
+  return new deck.SolidPolygonLayer({id:'ql',data:QL.data,_normalize:false,
+    extruded:true,pickable:true,autoHighlight:true,highlightColor:[255,255,255,110],
+    getElevation:qlElev,getFillColor:qlColor,
     material:{ambient:.5,diffuse:.6,shininess:12,specularColor:[30,28,24]},
     extensions:[new deck.DataFilterExtension({filterSize:2})],
-    getFilterValue:f=>[yearOf(f.properties)||NO_YEAR,CENTRO.has(f.properties.d)?1:0],filterRange:[[0,cutoff],[0,centroView(view.zoom)?0:1]],
-    maxRequests:64,maxCacheByteSize:300e6,refinementStrategy:'no-overlap',
-    updateTriggers:{getFillColor:[mode,selPeriod,isDark()]},
-    onViewportLoad:()=>{ if(!longeOk){ longeOk=true; refresh(); } },
-    onTileError:e=>console.warn('bloco',e)}); }
+    getFilterValue:qlFilter,filterRange:[[0,cutoff],[0,centroView(view.zoom)?0:1]],
+    updateTriggers:{getFillColor:[mode,selPeriod,mode==='period'?cutoff:0],getElevation:[cutoff]}}); }
 function pickLayer(){ return picked&&(yearOf(picked.properties)||NO_YEAR)<=cutoff?new deck.GeoJsonLayer({id:'pick',data:[picked],extruded:true,getElevation:f=>f.properties.h+0.4,getFillColor:[255,255,255,255],material:{ambient:.8,diffuse:.4}}):null; }
 function layers(){
   const z=view.zoom, city=z<BUILD_Z, dark=isDark(), lineC=hex(css('--muted')||'#6e6e73'), acc=hex(css('--accent')||'#0071e3');
@@ -582,7 +603,8 @@ function layers(){
       material:{ambient:.55,diffuse:.55,shininess:8,specularColor:[30,28,24]},
       updateTriggers:{getFillColor:[mode,dark,Math.round(nearT(z)*20)],getElevation:[cutoff]},transitions:{getElevation:{duration:250}}}));
     L.push(...hexLayers(z));
-    if(longeView(z)) L.push(lLayer());
+    if(!QL&&!qlPedido&&z>=LONGE_Z-1) qlLoad();
+    if(longeView(z)) L.push(qLayer());
     if(centroView(z)){ L.push(bLayer(true)); const pk=pickLayer(); if(pk) L.push(pk); }
     L.push(new deck.PathLayer({id:'distline',data:OUTL,getPath:d=>d.path,getColor:d=>d.cd===scopeCd?[...acc,255]:[...lineC,dark?90:70],getWidth:d=>d.cd===scopeCd?3:1,widthUnits:'pixels',updateTriggers:{getColor:[scopeCd,dark],getWidth:[scopeCd]}}));
   } else {
@@ -620,9 +642,10 @@ function renderLegend(){
   const title={period:lang==='pt'?'Construído em':'Built in',heritage:T('her_title'),floors:T('fl_title'),use:T('use_title'),quality:T('m_quality')}[mode];
   h+=`<h2>${title}</h2>`;
   h+=`<div class="scope"><span>${P?esc(P.nome):T('city')}</span>${P?`<button id="clearScope" aria-label="${T('clear_scope')}" title="${T('clear_scope')}"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>`:''}</div>`;
-  if(city){
+  if(city&&longeView(view.zoom)){ h+=`<h3>${T('on_map')}</h3><p class="hint" style="margin:0 0 6px">${T('on_map_longe')}</p><h3>${T('counts_of')}</h3>`; }
+  else if(city){
     const HX=hexView(view.zoom)&&HEX.length;
-    h+=`<h3>${T('on_map')}</h3><p class="hint" style="margin:0 0 6px">${HX?T('on_map_hex').replace('{r}',fmt(HEX_R)):T('on_map_dist')}${longeView(view.zoom)?' '+T('on_map_longe'):centroView(view.zoom)?' '+T('on_map_centro'):''}</p>`;
+    h+=`<h3>${T('on_map')}</h3><p class="hint" style="margin:0 0 6px">${HX?T('on_map_hex').replace('{r}',fmt(HEX_R)):T('on_map_dist')}${centroView(view.zoom)?' '+T('on_map_centro'):''}</p>`;
     if(mode==='period') h+=`<p class="hint" style="margin-top:0">${T('d_color_period')}</p><div class="ramp" style="background:${rampCss(YEAR_RAMP.filter(s=>s[0]>=1955&&s[0]<=2007),1960,2005)}"></div><div class="ramp-lab"><span>1960</span><span>1975</span><span>1990</span><span>2005</span></div>`;
     else if(mode==='use'){ h+=`<p class="hint" style="margin-top:0">${T('d_color_use')}</p>`; }
     else { const cap=HX?CAP['h'+mode]:CAP[mode]; const st=mode==='floors'?FLOOR_STOPS.map(([f,c],i)=>[i/(FLOOR_STOPS.length-1)*cap,c]):(mode==='quality'?Q_RAMP:H_RAMP).map(([v,c])=>[v*cap,c]);
@@ -858,7 +881,7 @@ metodo:`<h2 id="aboutTitle">Como foi feito</h2>
 <li><b>Patrimônio.</b> Edificações dentro de polígonos tombados (Conpresp, Condephaat ou Iphan) foram marcadas, com link para a resolução.</li>
 <li><b>Qualidade dos dados.</b> Cada edificação foi marcada quando está em favela (${fmt(c.edif_em_favela)}), loteamento irregular (${fmt(c.edif_em_loteamento)}) ou ZEIS-1 (${fmt(c.edif_em_zeis1)}). ${fmt(c.edif_sem_lote)} edificações estão fora de qualquer lote fiscal; ${fmt(c.edif_sem_lote_em_favela_lot_zeis1)} delas ficam nessas áreas. As áreas se sobrepõem, e ZEIS-1 é uma zona definida em lei, não um retrato da ocupação.</li>
 <li><b>Verificação.</b> Os dez distritos do centro reproduzem a versão anterior do mapa. A distribuição dos anos revelou o pico de 1970 (${fmt(c.ano_1970)} edificações, ${fmt(c.razao_1970_vizinhos,1)} vezes a média de 1969 e 1971) e o arredondamento em faixas de 5 anos (veja a camada Qualidade dos dados).</li>
-<li><b>Visualização.</b> De longe, o mapa mostra os distritos: a cor é o ano médio e a altura é a densidade construída. Ao aproximar, os distritos dão lugar a ${HEX.length?fmt(HEX.length)+' ':''}hexágonos de ${fmt(HEX_R)} m, que somam as edificações de cada trecho da cidade com as mesmas medidas; cada hexágono pertence só ao trecho, não a um distrito. Mais perto, aparecem as próprias edificações, servidas em blocos de mapa (PMTiles, gerados com tippecanoe) e desenhadas em 3D com deck.gl; no centro histórico (os 8 distritos da região Centro), que pesa pouco, elas aparecem um pouco antes. Valores extremos ficam no limite da escala (95% dos distritos, ou dos hexágonos com pelo menos 10 edificações, abaixo dele) e o valor real aparece no cartão ou ao passar o mouse.</li>
+<li><b>Visualização.</b> De longe, o mapa mostra os distritos: a cor é o ano médio e a altura é a densidade construída. Ao aproximar, os distritos dão lugar a ${HEX.length?fmt(HEX.length)+' ':''}hexágonos de ${fmt(HEX_R)} m, que somam as edificações de cada trecho da cidade com as mesmas medidas; cada hexágono pertence só ao trecho, não a um distrito. Em seguida, cada quadra viária vira um volume com a altura média das suas edificações (ponderada pela área de cada uma), e as de 30 m ou mais aparecem inteiras: um arquivo leve para a cidade inteira, que mostra a forma da cidade antes de cada edificação. Mais perto, aparecem as próprias edificações, servidas em blocos de mapa (PMTiles, gerados com tippecanoe) e desenhadas em 3D com deck.gl; no centro histórico (os 8 distritos da região Centro), que pesa pouco, elas aparecem um pouco antes. Valores extremos ficam no limite da escala (95% dos distritos, ou dos hexágonos com pelo menos 10 edificações, abaixo dele) e o valor real aparece no cartão ou ao passar o mouse.</li>
 </ol>
 <p class="note">Ferramentas: Python (GeoPandas, Shapely, pyproj) para o processamento, tippecanoe para os blocos de mapa e JavaScript (deck.gl, PMTiles) para o mapa. O projeto foi desenvolvido com apoio de IA (Claude); as escolhas de fonte, recorte, validação e interpretação são da autora.</p>`,
 cobertura:`<h2 id="aboutTitle">O que cobre e o que não cobre</h2>
@@ -905,7 +928,7 @@ metodo:`<h2 id="aboutTitle">How it was made</h2>
 <li><b>Heritage.</b> Buildings inside listed polygons (Conpresp, Condephaat or Iphan) were flagged, with a link to the resolution.</li>
 <li><b>Data quality.</b> Each building was flagged when it lies in a favela (${fmt(c.edif_em_favela)}), an irregular subdivision (${fmt(c.edif_em_loteamento)}) or a ZEIS-1 zone (${fmt(c.edif_em_zeis1)}). ${fmt(c.edif_sem_lote)} buildings lie outside any tax plot; ${fmt(c.edif_sem_lote_em_favela_lot_zeis1)} of them are in those areas. The areas overlap, and ZEIS-1 is a zone defined by law, not a picture of how land is occupied.</li>
 <li><b>Checks.</b> The ten downtown districts reproduce the previous version of the map. The year distribution revealed the 1970 spike (${fmt(c.ano_1970)} buildings, ${fmt(c.razao_1970_vizinhos,1)} times the mean of 1969 and 1971) and 5-year rounding (see the Data quality layer).</li>
-<li><b>Visualisation.</b> Zoomed out, the map shows districts: colour is the mean year and height is built density. Zooming in, the districts give way to ${HEX.length?fmt(HEX.length)+' ':''}${fmt(HEX_R)} m hexagons that sum up the buildings in each patch of the city with the same measures; each hexagon belongs to its patch, not to a district. Closer still, the buildings themselves appear, served as map tiles (PMTiles, built with tippecanoe) and drawn in 3D with deck.gl; in the historic centre (the 8 districts of the Centro region), which is light, they appear a little earlier. Extreme values are drawn at the scale limit (95% of districts, or of hexagons with at least 10 buildings, are below it) and the real value is on the card or on hover.</li>
+<li><b>Visualisation.</b> Zoomed out, the map shows districts: colour is the mean year and height is built density. Zooming in, the districts give way to ${HEX.length?fmt(HEX.length)+' ':''}${fmt(HEX_R)} m hexagons that sum up the buildings in each patch of the city with the same measures; each hexagon belongs to its patch, not to a district. Next, each city block becomes one volume with the mean height of its buildings (weighted by each one's area), and buildings 30 m or taller show individually: a light file for the whole city, showing its shape before every building. Closer still, the buildings themselves appear, served as map tiles (PMTiles, built with tippecanoe) and drawn in 3D with deck.gl; in the historic centre (the 8 districts of the Centro region), which is light, they appear a little earlier. Extreme values are drawn at the scale limit (95% of districts, or of hexagons with at least 10 buildings, are below it) and the real value is on the card or on hover.</li>
 </ol>
 <p class="note">Tools: Python (GeoPandas, Shapely, pyproj) for processing, tippecanoe for map tiles and JavaScript (deck.gl, PMTiles) for the map. Built with AI assistance (Claude); source choice, scope, validation and interpretation are the author's.</p>`,
 cobertura:`<h2 id="aboutTitle">What it covers and what it doesn't</h2>
@@ -987,14 +1010,20 @@ function init(){
     getCursor:({isHovering,isDragging})=>isDragging?'grabbing':isHovering?'pointer':'grab',
     onClick:info=>{
       const o=info.object, id=info.layer&&info.layer.id;
+      if(id==='ql'&&info.coordinate){ flyTo({longitude:info.coordinate[0],latitude:info.coordinate[1],zoom:BUILD_Z+1.6,pitch:52,bearing:view.bearing}); return; }
       if(!o){ if(view.zoom>=BUILD_Z) closeCard(); return; }
       if(id==='dist3d'){ setScope(o.properties.cd); return; }
       if(id==='hex'||id==='hexc'){ flyTo({longitude:o[0],latitude:o[1],zoom:BUILD_Z+1.6,pitch:52,bearing:view.bearing}); return; }
-      if(id==='bl'){ flyTo({longitude:info.coordinate[0],latitude:info.coordinate[1],zoom:BUILD_Z+1.6,pitch:52,bearing:view.bearing}); return; }
       if(id==='lm'){ picked=null; showLandmark(o); refresh(); return; }
       if(id&&id.startsWith('b')&&o.properties&&o.properties.layerName!=='quadras'){ picked=o; showBuilding(o); refresh(); }
     },
-    getTooltip:({object,layer})=>{
+    getTooltip:({object,layer,index})=>{
+      if(layer&&layer.id==='ql'&&index>=0){ const pt=lang==='pt', h=fmt(QL.h_dm[index]/10), y=QL.ano_medio[index]?fy(QL.ano_medio[index]):'—';
+        return {text:QL.inteira[index]?`${pt?'Edificação de':'Building,'} ${h} m
+${y}`:`${fmt(QL.n[index])} ${T('bld')}
+${T('mean_y')}: ${y}
+${pt?'Altura média':'Mean height'}: ${h} m`,
+          style:{fontFamily:'-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif',fontSize:'12px',fontWeight:'500',background:'rgba(28,28,30,.86)',color:'#fff',borderRadius:'10px',padding:'7px 10px',boxShadow:'0 6px 20px rgba(0,0,0,.18)',whiteSpace:'pre-line',maxWidth:'280px'}}; }
       if(!object||!layer) return null;
       const st={fontFamily:'-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif',fontSize:'12px',fontWeight:'500',background:'rgba(28,28,30,.86)',color:'#fff',borderRadius:'10px',padding:'7px 10px',boxShadow:'0 6px 20px rgba(0,0,0,.18)',whiteSpace:'pre-line',maxWidth:'280px'};
       if(layer.id==='dist3d'){ const p=object.properties; if(p.sem_levantamento) return {text:`${p.nome}\n${T('nodata')}`,style:st};

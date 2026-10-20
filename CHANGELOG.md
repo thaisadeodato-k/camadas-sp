@@ -17,6 +17,12 @@ Resultado:
 - Com ano no IPTU: 89,5% → 89,5%.
 - Distritos que mais mudaram: BELA VISTA (5.658 → 5.659).
 
+## 2026-10-20: quadras vistas de longe
+
+- Entre os hexágonos e as edificações, cada quadra viária aparece como um volume: altura média das suas edificações (ponderada pela área), cor do ano médio ou do valor que predomina. As edificações de 30 m ou mais, e as poucas fora de qualquer quadra, aparecem inteiras.
+- Na linha do tempo, cada volume cresce com a parte da quadra já construída.
+- Um arquivo só (`quadras_longe.bin`, cerca de 4 MB, gerado por `gera_site.py longe`), no lugar de `edificacoes_longe.pmtiles`, que deixa de ser gerado. No teste, cerca de 1 segundo de travamento ao chegar e 300 MB de memória, contra 6 a 11 segundos e mais de 2 GB da tentativa anterior.
+
 ## 2026-10-20: prédios vistos de longe
 
 - No computador, os prédios aparecem a partir do zoom 13 (antes 13,5), com todos os detalhes.

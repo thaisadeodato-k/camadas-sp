@@ -275,5 +275,132 @@ def tiles(destino=CACHE / 'tiles' / 'edificacoes.geojsonl'):
     quadras()
 
 
+def grupo_uso(u):
+    """Mesma regra do useGroup do index.html."""
+    import re
+    s = (u or '').lower()
+    for g, rx in ((4, r'ind[uú]stri|armaz|galp|dep[oó]sito|oficina'), (2, r'misto|loja e resid|resid[eê]ncia e outro'),
+                  (3, r'escrit|consult'), (0, r'resid|apartamento|cortiço'), (1, r'loja|comerc|hotel|garagem|posto|servi')):
+        if re.search(rx, s):
+            return g
+    return 5
+
+
+def qualidade(y0, est, fav, lotirr, zeis):
+    """Mesma regra do qualOf do index.html (vetorizada)."""
+    q = np.zeros(len(y0), dtype=np.uint8)
+    q[(y0 < 1960) & (y0 % 5 == 4) & (y0 > 0)] = 2
+    q[y0 == 1970] = 1
+    q[(y0 == 0) & ~(fav | lotirr | zeis)] = 3
+    q[(y0 == 0) & (fav | lotirr | zeis)] = 5
+    q[est] = 4
+    return q
+
+
+def longe(destino=RAIZ / 'quadras_longe.bin', alto=30):
+    """Vista de longe: cada quadra viária vira um volume com as edificações que tem dentro;
+    as edificações com altura de `alto` metros ou mais (e as poucas fora de qualquer quadra) ficam inteiras.
+
+    Por volume: altura (média das edificações baixas, ponderada pela área do contorno), ano médio,
+    anos em que 0, 25, 50, 75 e 100% das edificações datadas já existiam (linha do tempo),
+    pavimentos (média ponderada), grupo de uso e qualidade predominantes, se há bem tombado,
+    distrito e nº de edificações. Contornos simplificados, só o anel externo.
+
+    Arquivo binário (little-endian): uint32 tamanho do cabeçalho, cabeçalho JSON, e os vetores
+    na ordem de cabeçalho['vetores'], cada um começando num múltiplo de 4 bytes.
+    """
+    from shapely import get_exterior_ring, get_coordinates, get_num_coordinates
+    from shapely.geometry.polygon import orient
+    hist = historicos()
+    Q = []
+    for arq in sorted((CACHE / 'processado').glob('*_quadras.parquet')):
+        Q.append(gpd.read_parquet(arq))
+    Q = pd.concat(Q).drop_duplicates('cd_identificador_quadra_viaria_editada_original').reset_index(drop=True)
+    Q = gpd.GeoDataFrame(Q[['geometry']], crs=Q.crs)
+    partes = []
+    for arq in sorted((CACHE / 'processado').glob('*_edificacoes.parquet')):
+        cd = arq.name[:2]
+        E = gpd.read_parquet(arq, columns=['geometry', 'h', 'ano_min', 'pav', 'uso', 'tomb', 'est', 'em_favela', 'em_loteamento', 'em_zeis1'])
+        y = E.ano_min.fillna(0).astype(int).to_numpy().copy()
+        y0 = y.copy()
+        for (d, i), (ano, _) in hist.items():
+            if d == cd:
+                y[i] = ano
+        P = gpd.GeoDataFrame({'d': int(cd), 'h': E.h.to_numpy(), 'y': y, 'pav': E.pav.fillna(0).to_numpy(),
+                              'g': [grupo_uso(u) for u in E.uso.fillna('')],
+                              'q': qualidade(y0, E.est.to_numpy() > 0, E.em_favela.to_numpy(), E.em_loteamento.to_numpy(), E.em_zeis1.to_numpy()),
+                              'tomb': (E.tomb >= 0).to_numpy(), 'a': E.area.to_numpy(), 'geometry': E.geometry.to_numpy()}, crs=E.crs)
+        j = gpd.sjoin(P.set_geometry(P.representative_point()), Q, how='left', predicate='within')
+        P['quadra'] = j[~j.index.duplicated()].index_right.fillna(-1).astype(int)
+        partes.append(P)
+    P = pd.concat(partes, ignore_index=True)
+    soltas = (P.h >= alto) | (P.quadra < 0)
+    n = lambda v: f'{int(v):,}'.replace(',', '.')
+    print(f'{n(len(P))} edificações: {n(soltas.sum())} inteiras ({n((P.h >= alto).sum())} com {alto} m ou mais), '
+          f'as demais em {n(P.quadra[~soltas].nunique())} quadras')
+
+    def resume(G, chaves):
+        """Atributos por volume; G tem uma linha por edificação e a coluna 'k' (volume)."""
+        G = G.assign(ah=G.a * G.h, ap=G.a * G.pav)
+        g = G.groupby('k')
+        R = pd.DataFrame(index=chaves)
+        R['h'] = g.ah.sum() / g.a.sum()
+        R['pav'] = g.ap.sum() / g.a.sum()
+        R['n'] = g.size()
+        R['tomb'] = g.tomb.any()
+        R['d'] = g.d.agg(lambda s: s.mode().iat[0])
+        R['g'] = g.g.agg(lambda s: s.mode().iat[0])
+        R['q'] = g.q.agg(lambda s: s.mode().iat[0])
+        dat = G[G.y > 0]
+        R['ym'] = dat.groupby('k').y.mean()
+        for c, p in zip(['y0', 'y25', 'y50', 'y75', 'y100'], [0, .25, .5, .75, 1]):
+            R[c] = dat.groupby('k').y.quantile(p, interpolation='lower')
+        return R.fillna(0)
+
+    # volumes das quadras: só as edificações baixas
+    B = P[~soltas].rename(columns={'quadra': 'k'})
+    RQ = resume(B, np.sort(B.k.unique()))
+    GQ = Q.geometry.iloc[RQ.index].simplify(8)
+    # edificações inteiras
+    S = P[soltas].reset_index(drop=True)
+    RS = resume(S.assign(k=S.index), S.index)
+    GS = S.geometry.simplify(2)
+    R = pd.concat([RQ.assign(inteira=0), RS.assign(inteira=1)], ignore_index=True)
+    G = gpd.GeoSeries(pd.concat([GQ, GS], ignore_index=True).to_numpy(), crs=Q.crs)
+    # um anel externo por parte (multipolígonos viram várias partes com os mesmos atributos), anti-horário
+    G = G.explode(index_parts=False)
+    G = G[~G.is_empty & (G.area > 0)]
+    G = gpd.GeoSeries([orient(p, 1.0) for p in G], index=G.index, crs=Q.crs).to_crs(4326)
+    R = R.loc[G.index].reset_index(drop=True)
+    aneis = get_exterior_ring(G.to_numpy())
+    xy = get_coordinates(aneis)
+    nv = get_num_coordinates(aneis)
+    ini = np.concatenate([[0], np.cumsum(nv)]).astype(np.uint32)
+    # coordenadas em uint16 dentro do retângulo da cidade (passo de cerca de 1 m)
+    x0, y0 = xy.min(0)
+    x1, y1 = xy.max(0)
+    qx = np.round((xy[:, 0] - x0) / (x1 - x0) * 65535).astype(np.uint16)
+    qy = np.round((xy[:, 1] - y0) / (y1 - y0) * 65535).astype(np.uint16)
+    vet = [('inicio', ini), ('xy', np.column_stack([qx, qy]).ravel()),
+           ('h_dm', np.round(R.h * 10).clip(0, 65535).astype(np.uint16)),
+           ('ano_medio', np.round(R.ym).astype(np.uint16)),
+           ('anos_quartis', R[['y0', 'y25', 'y50', 'y75', 'y100']].to_numpy().astype(np.uint16).ravel()),
+           ('n', R.n.clip(0, 65535).astype(np.uint16)),
+           ('pav', np.round(R.pav).clip(0, 255).astype(np.uint8)), ('uso', R.g.astype(np.uint8)),
+           ('qualidade', R.q.astype(np.uint8)), ('tomb', R.tomb.astype(np.uint8)),
+           ('distrito', R.d.astype(np.uint8)), ('inteira', R.inteira.astype(np.uint8))]
+    cab = {'volumes': len(R), 'vertices': int(len(xy)), 'bbox': [x0, y0, x1, y1], 'alto_m': alto,
+           'vetores': [[k, str(v.dtype), int(v.size)] for k, v in vet]}
+    c = json.dumps(cab, separators=(',', ':')).encode()
+    c += b' ' * (-(4 + len(c)) % 4)
+    with open(destino, 'wb') as f:
+        f.write(np.uint32(len(c)).tobytes() + c)
+        for _, v in vet:
+            b = np.ascontiguousarray(v).astype(v.dtype.newbyteorder('<')).tobytes()
+            f.write(b + b'\0' * (-len(b) % 4))
+    print(f'{destino.name}: {n(len(R))} volumes ({n(len(RQ))} quadras), {n(len(xy))} vértices, '
+          f'{destino.stat().st_size / 1e6:.1f} MB')
+
+
 if __name__ == '__main__':
-    {'distritos': distritos, 'tombados': tombados, 'tiles': tiles, 'hexagonos': hexagonos}[sys.argv[1]]()
+    {'distritos': distritos, 'tombados': tombados, 'tiles': tiles, 'hexagonos': hexagonos, 'longe': longe}[sys.argv[1]]()

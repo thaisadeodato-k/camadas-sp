@@ -138,6 +138,7 @@ jobs:
           python pipeline/gera_site.py distritos
           python pipeline/gera_site.py tombados
           python pipeline/gera_site.py hexagonos
+          python pipeline/gera_site.py longe
 
       - name: Entrada dos blocos
         run: python pipeline/gera_site.py tiles
@@ -152,21 +153,12 @@ jobs:
             -L quadras:pipeline/cache/tiles/quadras.geojsonl
           ls -la tiles
 
-      # vista de longe: todas as edificações, só com os atributos que dão a cor e a altura,
-      # sem descartar prédios (os muito pequenos viram quadradinhos de área equivalente)
-      - name: Blocos da vista de longe (PMTiles)
+      - name: Tamanho dos blocos
         run: |
-          tippecanoe -o tiles/edificacoes_longe.pmtiles \
-            -Z11 -z14 --no-feature-limit --no-tile-size-limit --simplification=4 \
-            -y d -y h -y y0 -y yh -y pav -y uso -y tomb -y est -y fav -y lotirr -y zeis \
-            --read-parallel --force -l edificacoes pipeline/cache/tiles/edificacoes.geojsonl
           pip install -q pmtiles
           echo "### Tamanho dos blocos" >> "$GITHUB_STEP_SUMMARY"
-          ls -la tiles >> "$GITHUB_STEP_SUMMARY"
-          for a in edificacoes edificacoes_longe; do
-            echo "#### $a" >> "$GITHUB_STEP_SUMMARY"
-            python pipeline/mede_blocos.py tiles/$a.pmtiles | tee -a "$GITHUB_STEP_SUMMARY"
-          done
+          ls -la tiles quadras_longe.bin >> "$GITHUB_STEP_SUMMARY"
+          python pipeline/mede_blocos.py tiles/edificacoes.pmtiles | tee -a "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/download-artifact@v4
         with:
@@ -192,7 +184,7 @@ jobs:
           retention-days: 7
           path: |
             tiles/edificacoes.pmtiles
-            tiles/edificacoes_longe.pmtiles
+            quadras_longe.bin
             distritos.json
             tombados.json
             hexagonos.json
@@ -206,7 +198,7 @@ jobs:
           gh release view dados >/dev/null 2>&1 || gh release create dados --latest=false \
             --title "Dados do site" \
             --notes "Arquivos gerados pelo pipeline e usados pelo site; atualizados pelo workflow gera-dados."
-          gh release upload dados tiles/edificacoes.pmtiles tiles/edificacoes_longe.pmtiles distritos.json tombados.json hexagonos.json \
+          gh release upload dados tiles/edificacoes.pmtiles quadras_longe.bin distritos.json tombados.json hexagonos.json \
             pipeline/saida/linha_de_base.json pipeline/saida/fontes_verificadas.json --clobber
 
       - name: Registra no CHANGELOG

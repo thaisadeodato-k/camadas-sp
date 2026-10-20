@@ -41,7 +41,8 @@ jobs:
           mkdir -p site/tiles
           cp index.html historical_dates.json site/
           gh release download dados --repo "$GITHUB_REPOSITORY" --dir site --pattern '*.json'
-          gh release download dados --repo "$GITHUB_REPOSITORY" --dir site/tiles --pattern 'edificacoes*.pmtiles'
+          gh release download dados --repo "$GITHUB_REPOSITORY" --dir site --pattern 'quadras_longe.bin'
+          gh release download dados --repo "$GITHUB_REPOSITORY" --dir site/tiles --pattern 'edificacoes.pmtiles'
           ls -laR site
           echo "### Arquivos publicados" >> "$GITHUB_STEP_SUMMARY"
           ls -laR site >> "$GITHUB_STEP_SUMMARY"
