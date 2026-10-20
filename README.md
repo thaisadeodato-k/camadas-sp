@@ -8,7 +8,7 @@ Mapa 3D interativo com as **2.789.795 edificações** dos 96 distritos de São P
 
 ## O que dá para fazer no mapa
 
-- Ver a cidade em três escalas: de longe, os **96 distritos** (cor = ano médio, altura = densidade construída); ao aproximar, **17.107 hexágonos de 150 m** com as mesmas medidas; mais perto, as **próprias edificações** em 3D. No computador, todas as edificações já aparecem de longe, simplificadas, e ganham detalhe ao aproximar; no celular, e também no centro histórico, elas aparecem a partir de uma distância intermediária.
+- Ver a cidade em três escalas: de longe, os **96 distritos** (cor = ano médio, altura = densidade construída); ao aproximar, **17.107 hexágonos de 150 m** com as mesmas medidas; mais perto, as **próprias edificações** em 3D. No centro histórico, as edificações aparecem de mais longe.
 - Arrastar a **linha do tempo** e ver a cidade crescer ano a ano.
 - Alternar entre **Período**, **Patrimônio** (bens tombados), **Pavimentos**, **Uso** e **Qualidade dos dados**.
 - Buscar um distrito, abrir a **tabela dos 96 distritos** e clicar numa edificação para ver ano, fonte da data, pavimentos, uso, padrão e tombamento.
@@ -44,7 +44,7 @@ O pipeline (`pipeline/`) roda sem intervenção e guarda o progresso: se for int
 4. **Cruzamentos:** lote ↔ IPTU pelo código fiscal; edificação ↔ lote pela posição. Quando o ponto da edificação cai em mais de um lote, vale o lote que tem ano no IPTU. Prédios recentes ausentes do levantamento (8.675) têm o volume estimado pelo lote.
 5. **Relatório** (`resumo.py`): métricas de qualidade por distrito e a linha de base usada nos controles.
 6. **Arquivos do site** (`gera_site.py`): resumo por distrito (`distritos.json`), hexágonos (`hexagonos.json`), bens tombados (`tombados.json`) e a entrada dos blocos de mapa.
-7. **Blocos de mapa:** [tippecanoe](https://github.com/felt/tippecanoe) gera `edificacoes.pmtiles` (cerca de 260 MB), lido pelo site aos pedaços, e `edificacoes_longe.pmtiles` (cerca de 145 MB), com todas as edificações simplificadas para a vista de longe. `mede_blocos.py` mostra o tamanho dos blocos de cada nível.
+7. **Blocos de mapa:** [tippecanoe](https://github.com/felt/tippecanoe) gera `edificacoes.pmtiles` (cerca de 260 MB), lido pelo site aos pedaços, e `edificacoes_longe.pmtiles` (cerca de 145 MB), com todas as edificações simplificadas para uma vista de longe, testada e por ora desligada, porque pesava demais para o navegador. `mede_blocos.py` mostra o tamanho dos blocos de cada nível.
 8. **Visualização:** [deck.gl](https://deck.gl) e [PMTiles](https://github.com/protomaps/PMTiles), num único `index.html`, sem etapa de build.
 
 Ferramentas: Python (GeoPandas, Shapely, pyproj, pandas), tippecanoe e JavaScript (deck.gl, PMTiles). Desenvolvido com apoio de IA (Claude); escolhas de fonte, recorte, validação e interpretação são da autora.

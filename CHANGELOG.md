@@ -4,7 +4,7 @@ As atualizações mensais dos dados são registradas aqui automaticamente pelo w
 ## 2026-10-20: prédios vistos de longe
 
 - No computador, os prédios aparecem a partir do zoom 13 (antes 13,5), com todos os detalhes.
-- No computador, de mais longe ainda (zoom 11,5), todas as edificações aparecem simplificadas, de um arquivo de blocos à parte (`edificacoes_longe.pmtiles`, cerca de 33 MB para a cidade inteira).
+- Testada e desligada no mesmo dia: a vista de longe com todas as edificações simplificadas (`edificacoes_longe.pmtiles`, cerca de 33 MB para a cidade inteira). Com a cidade inteira na tela, o navegador travava de 6 a 11 segundos e passava de 2 GB de memória. O arquivo continua sendo gerado.
 
 ## 2026-10-19: dados atualizados
 

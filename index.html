@@ -342,11 +342,13 @@ const NO_YEAR=2100, BUILD_Z=DESKTOP?13:13.5, DIST_H=3000;
 /* centro histórico (região Centro, 8 distritos): são só 56 blocos (cerca de 5 MB), então ali os prédios aparecem mais de longe */
 const CENTRO_Z=DESKTOP?12:12.5;
 let CENTRO=new Set(), CENTRO_BB=null;
-const centroView=z=>z>=CENTRO_Z&&z<BUILD_Z&&!!CENTRO_BB;
 /* vista de longe, só no computador: todas as edificações, simplificadas e só com cor e altura,
-   de um arquivo à parte (edificacoes_longe.pmtiles) com os blocos do nível 12, cerca de 33 MB para a cidade inteira */
-const LONGE_Z=DESKTOP?11.5:null;
+   de um arquivo à parte (edificacoes_longe.pmtiles) com os blocos do nível 12, cerca de 33 MB para a cidade inteira;
+   ali ela substitui a vista do centro, e os hexágonos só se apagam depois que os blocos da tela chegaram (longeOk) */
+/* DESLIGADA: com a cidade inteira, o navegador travava de 6 a 11 s (contra 3 s da vista detalhada) e passava de 2 GB de memória */
+const LONGE_Z=null; let longeOk=false;
 const longeView=z=>!!LONGE_Z&&z>=LONGE_Z&&z<BUILD_Z;
+const centroView=z=>!LONGE_Z&&z>=CENTRO_Z&&z<BUILD_Z&&!!CENTRO_BB;
 /* qualidade do ano do IPTU (y0), não do ano exibido */
 function qualOf(p){ if(p.est) return 4; if(!p.y0) return (p.fav||p.lotirr||p.zeis)?5:3; if(p.y0===1970) return 1; if(p.y0<1960&&p.y0%5===4) return 2; return 0; }
 const yearOf=p=>p.yh||p.y0||0;
@@ -504,7 +506,8 @@ function hexLayer(z,id,data,bz){ const a=hexIn(z)*hexOut(z,bz); if(a<=.01||!data
     getFillColor:h=>{ const c=hexColor(h); return [c[0],c[1],c[2],hexStanding(h)?Math.round(240*a*c[3]):0]; },
     material:{ambient:.55,diffuse:.55,shininess:8,specularColor:[30,28,24]},
     updateTriggers:{getFillColor:[mode,cutoff,Math.round(a*20)],getElevation:[cutoff]},transitions:{getElevation:{duration:250}}}); }
-const hexLayers=z=>[hexLayer(z,'hex',HEXR,LONGE_Z||BUILD_Z),hexLayer(z,'hexc',HEXC,Math.min(CENTRO_Z,LONGE_Z||CENTRO_Z))].filter(Boolean);
+function hexLayers(z){ const bz=LONGE_Z&&longeOk?LONGE_Z:BUILD_Z;
+  return [hexLayer(z,'hex',HEXR,bz),hexLayer(z,'hexc',HEXC,LONGE_Z?bz:CENTRO_Z)].filter(Boolean); }
 const elevScale=z=>Math.min(1,Math.pow(2,10.4-z))*(1-nearT(z));
 
 /* ---------- edificações (PMTiles) ---------- */
@@ -566,6 +569,7 @@ function lLayer(){
     getFilterValue:f=>[yearOf(f.properties)||NO_YEAR,CENTRO.has(f.properties.d)?1:0],filterRange:[[0,cutoff],[0,centroView(view.zoom)?0:1]],
     maxRequests:64,maxCacheByteSize:300e6,refinementStrategy:'no-overlap',
     updateTriggers:{getFillColor:[mode,selPeriod,isDark()]},
+    onViewportLoad:()=>{ if(!longeOk){ longeOk=true; refresh(); } },
     onTileError:e=>console.warn('bloco',e)}); }
 function pickLayer(){ return picked&&(yearOf(picked.properties)||NO_YEAR)<=cutoff?new deck.GeoJsonLayer({id:'pick',data:[picked],extruded:true,getElevation:f=>f.properties.h+0.4,getFillColor:[255,255,255,255],material:{ambient:.8,diffuse:.4}}):null; }
 function layers(){
