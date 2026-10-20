@@ -16,7 +16,7 @@ on:
         type: boolean
         default: true
   push:
-    branches: [main, pipeline-etapa3]
+    branches: [main, pipeline-etapa3, longe]
     paths: ['pipeline/**', '.github/workflows/gera-dados.yml']
 
 # uma execução por vez, para duas não gravarem a release ao mesmo tempo
@@ -151,8 +151,22 @@ jobs:
             -L edificacoes:pipeline/cache/tiles/edificacoes.geojsonl \
             -L quadras:pipeline/cache/tiles/quadras.geojsonl
           ls -la tiles
+
+      # vista de longe: todas as edificações, só com os atributos que dão a cor e a altura,
+      # sem descartar prédios (os muito pequenos viram quadradinhos de área equivalente)
+      - name: Blocos da vista de longe (PMTiles)
+        run: |
+          tippecanoe -o tiles/edificacoes_longe.pmtiles \
+            -Z11 -z14 --no-feature-limit --no-tile-size-limit --simplification=4 \
+            -y d -y h -y y0 -y yh -y pav -y uso -y tomb -y est -y fav -y lotirr -y zeis \
+            --read-parallel --force -l edificacoes pipeline/cache/tiles/edificacoes.geojsonl
+          pip install -q pmtiles
           echo "### Tamanho dos blocos" >> "$GITHUB_STEP_SUMMARY"
           ls -la tiles >> "$GITHUB_STEP_SUMMARY"
+          for a in edificacoes edificacoes_longe; do
+            echo "#### $a" >> "$GITHUB_STEP_SUMMARY"
+            python pipeline/mede_blocos.py tiles/$a.pmtiles | tee -a "$GITHUB_STEP_SUMMARY"
+          done
 
       - uses: actions/download-artifact@v4
         with:
@@ -178,6 +192,7 @@ jobs:
           retention-days: 7
           path: |
             tiles/edificacoes.pmtiles
+            tiles/edificacoes_longe.pmtiles
             distritos.json
             tombados.json
             hexagonos.json
