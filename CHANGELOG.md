@@ -28,6 +28,10 @@ Resultado:
 - Com ano no IPTU: 89,5% → 89,5%.
 - Distritos que mais mudaram: BELA VISTA (5.658 → 5.659).
 
+## 2026-10-26: centro com quadras
+
+- O centro histórico também mostra as quadras até o zoom 13, como o resto da cidade. Antes, os prédios do centro apareciam a partir do zoom 12 e, na vista de quadras, pesavam o dobro de todas as quadras da cidade juntas. No teste, o desenho dessa vista ficou cerca de 65% mais rápido.
+
 ## 2026-10-20: quadras vistas de longe
 
 - Entre os hexágonos e as edificações, cada quadra viária aparece como um volume: altura média das suas edificações (ponderada pela área), cor do ano médio ou do valor que predomina. As edificações de 30 m ou mais, e as poucas fora de qualquer quadra, aparecem inteiras.
