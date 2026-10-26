@@ -8,3 +8,7 @@ tiles/
 /tombados.json
 /fontes_verificadas.json
 /quadras_longe.bin
+# guardados no computador, fora do Git (decidir depois se apaga)
+/camadas-sp/
+/.github/workflows/teste-acesso-wfs.yml
+/pipeline/saida/
