@@ -8,8 +8,8 @@ Mapa 3D interativo com as **2.789.795 edificações** dos 96 distritos de São P
 
 ## O que dá para fazer no mapa
 
-- Ver a cidade em três escalas: de longe, os **96 distritos** (cor = ano médio, altura = densidade construída); ao aproximar, **17.107 hexágonos de 150 m** com as mesmas medidas; depois, **cada quadra como um volume** (altura média das suas edificações, e as de 30 m ou mais inteiras); mais perto, as **próprias edificações** em 3D.
-- Escolher uma **área** (regiões ou distritos): só as edificações dela aparecem e são baixadas, o que deixa o mapa mais rápido; fora dela, a cidade fica em quadras.
+- Ver a cidade em três escalas: de longe, os **96 distritos** (cor = ano médio, altura = densidade construída); ao aproximar, **cada quadra como um volume** (altura média das suas edificações, e as de 30 m ou mais inteiras); mais perto, as **próprias edificações** em 3D.
+- Escolher a **área** (regiões ou distritos): o mapa começa só com a região Centro, e o botão Área acrescenta as outras. Só as edificações da área aparecem e são baixadas; fora dela, a cidade fica em quadras. Buscar um distrito, ou clicar numa quadra para aproximar, acrescenta aquele distrito à área.
 - Arrastar a **linha do tempo** e ver a cidade crescer ano a ano.
 - Alternar entre **Período**, **Patrimônio** (bens tombados), **Pavimentos**, **Uso** e **Qualidade dos dados**.
 - Buscar um distrito, abrir a **tabela dos 96 distritos** e clicar numa edificação para ver ano, fonte da data, pavimentos, uso, padrão e tombamento.

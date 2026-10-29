@@ -28,6 +28,11 @@ Resultado:
 - Com ano no IPTU: 89,5% → 89,5%.
 - Distritos que mais mudaram: BELA VISTA (5.658 → 5.659).
 
+## 2026-10-29: começa pelo centro, sem hexágonos
+
+- O mapa começa só com as edificações da região Centro (8 distritos); as outras regiões entram pelo botão Área. Buscar um distrito, abri-lo pela tabela ou clicar numa quadra para aproximar acrescenta aquele distrito à área.
+- Os hexágonos saíram: de longe os distritos, ao aproximar as quadras, de perto as edificações. O arquivo das quadras (cerca de 4 MB) é baixado logo depois que o mapa aparece, no lugar do arquivo dos hexágonos; os distritos só se apagam depois que as quadras chegaram. O pipeline ainda gera hexagonos.json, mas o site não o usa mais.
+
 ## 2026-10-29: aviso de carregamento e escolha da área
 
 - Enquanto as edificações ou as quadras chegam, um aviso mostra quanto já carregou (aparece só se a espera passa de meio segundo).
