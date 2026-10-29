@@ -28,6 +28,11 @@ Resultado:
 - Com ano no IPTU: 89,5% → 89,5%.
 - Distritos que mais mudaram: BELA VISTA (5.658 → 5.659).
 
+## 2026-10-29: aviso de carregamento e escolha da área
+
+- Enquanto as edificações ou as quadras chegam, um aviso mostra quanto já carregou (aparece só se a espera passa de meio segundo).
+- Novo botão **Área**: escolher uma ou mais regiões ou distritos. Só as edificações da área aparecem, e o mapa baixa só os blocos do retângulo dela; fora, a cidade continua em quadras. No teste, com a região Centro escolhida, a vista do centro no zoom 13 pediu 57 blocos em vez de 181. O cartão do distrito ganhou o botão "Só este distrito".
+
 ## 2026-10-29: o meio da tela carrega primeiro
 
 - Ao chegar nas edificações, o meio da tela ficava vazio enquanto as bordas carregavam: o mapa passava os blocos à fila em lotes de 64, na ordem da grade, e a fila só escolhia o mais perto do meio dentro de cada lote. Agora a tela inteira entra na fila, e só saem os blocos que ainda aparecem na tela (os que ficaram para trás num voo esperam ser cancelados). No teste, o meio da tela ficou pronto em 0,4 s em vez de 1,3 s (computador, zoom 13); ao voar até o centro, o mapa baixa menos blocos (97 em vez de 131 no computador, 15 em vez de 37 no celular).

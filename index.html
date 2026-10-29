@@ -117,6 +117,20 @@ button.row:hover{background:var(--fill)}
 .zoomhint{left:50%;transform:translateX(-50%);bottom:calc(112px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:10px;padding:6px 6px 6px 16px;border-radius:999px;font-size:13px;color:var(--muted);white-space:nowrap}
 .zoomhint button{flex:none;white-space:nowrap;padding:6px 14px;border-radius:999px;background:var(--accent);color:#fff;font-weight:600;font-size:13px}
 
+/* aviso de carregamento */
+.loadnote{left:50%;transform:translateX(-50%);bottom:calc(160px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:8px;padding:7px 14px 7px 12px;border-radius:999px;font-size:13px;font-weight:500;white-space:nowrap;pointer-events:none;font-variant-numeric:tabular-nums}
+.loadnote::before{content:'';width:12px;height:12px;border-radius:50%;border:2px solid var(--fill);border-top-color:var(--muted);animation:spin .9s linear infinite}
+
+/* escolha da área */
+.pill.on{background:var(--accent);color:#fff}
+.achips{display:flex;flex-wrap:wrap;gap:6px}
+.achip{padding:6px 12px;border-radius:999px;background:var(--fill);font-size:13px;font-weight:500;transition:background .2s}
+.achip:hover{background:var(--fill-hover)}
+.achip[aria-pressed="true"]{background:var(--accent);color:#fff}
+.about h4{margin:14px 0 6px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.aacts{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:14px 0 4px;padding:10px 10px 10px 14px;border-radius:14px;background:var(--fill);font-size:13.5px;font-weight:600}
+.aacts button{padding:8px 16px;border-radius:999px;background:var(--accent);color:#fff;font-weight:600;font-size:13.5px}
+
 /* info card */
 .card{top:calc(232px + env(safe-area-inset-top,0px));right:max(24px,env(safe-area-inset-right,0px));width:320px;max-height:calc(100% - 370px);overflow:auto;box-sizing:border-box;border-radius:var(--r);padding:20px;background:var(--panel-solid);animation:pop .35s cubic-bezier(.2,.9,.3,1.2)}
 @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
@@ -221,6 +235,7 @@ td button:hover{text-decoration:underline}
   .search{order:0}
   .timeline{order:1;padding:10px 14px 8px 10px;gap:10px}
   .zoomhint{order:3;justify-content:space-between;white-space:normal}
+  .loadnote{bottom:auto;top:calc(var(--maph) - 46px)}
   .card{order:4;animation:none}
   .legend{order:5}
   #hist{height:46px}
@@ -238,6 +253,7 @@ td button:hover{text-decoration:underline}
 <div class="haze" aria-hidden="true"></div>
 <div id="map" role="img" aria-label="Mapa 3D das edificações de São Paulo"></div>
 <div class="ui loading" id="loading" data-i18n="loading">carregando…</div>
+<div class="ui loadnote glass" id="loadnote" role="status" hidden><span id="loadtxt"></span><span id="loadpct" aria-hidden="true"></span></div>
 
 <header class="ui brand">
   <h1><small data-i18n="kicker">Camadas</small>São Paulo</h1>
@@ -255,6 +271,7 @@ td button:hover{text-decoration:underline}
   <b id="yearBig">Hoje</b>
   <span id="yearSub"></span>
   <div class="tools">
+    <button id="areaBtn" class="pill glass" aria-haspopup="dialog">Área</button>
     <button id="tableBtn" class="pill glass" data-i18n="table">Tabela</button>
     <button id="aboutBtn" class="pill glass" data-i18n="about">Sobre e método</button>
     <span class="seg glass"><button id="lang-pt" aria-pressed="true">PT</button><button id="lang-en" aria-pressed="false">EN</button></span>
@@ -305,6 +322,13 @@ td button:hover{text-decoration:underline}
   </article>
 </div>
 
+<div class="ui about" id="areaDlg" hidden role="dialog" aria-modal="true" aria-labelledby="areaTitle">
+  <article>
+    <button class="close" id="areaClose" aria-label="Fechar"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <div id="areaBody"></div>
+  </article>
+</div>
+
 <script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
 <script src="https://unpkg.com/pmtiles@3.2.1/dist/pmtiles.js"></script>
 <script>
@@ -343,10 +367,12 @@ const NO_YEAR=2100, BUILD_Z=DESKTOP?13:13.5, DIST_H=3000;
 /* DESLIGADO desde a vista de quadras: no zoom 12,5, esses prédios pesavam o dobro de todas as quadras da cidade (CENTRO_Z = BUILD_Z) */
 const CENTRO_Z=BUILD_Z;
 let CENTRO=new Set(), CENTRO_BB=null;
+/* área escolhida (botão Área): só as edificações destes distritos aparecem, e só os blocos do retângulo deles são pedidos; null = cidade toda */
+let AREA=null, AREA_BB=null, AREA_KEY='';
 /* vista de longe: cada quadra vira um volume com a altura média das suas edificações baixas, e as de 30 m ou mais ficam inteiras
    (quadras_longe.bin, gera_site.py longe: um arquivo só, baixado na primeira aproximação; os hexágonos só se apagam depois que ele chega)
    (se CENTRO_Z voltar a ser menor que BUILD_Z, os volumes saem do centro enquanto ali aparecem as próprias edificações) */
-const LONGE_Z=12; let QL=null, qlPedido=false;
+const LONGE_Z=12; let QL=null, qlPedido=false, qlErro=false;
 const longeView=z=>!!QL&&z>=LONGE_Z&&z<BUILD_Z;
 const centroView=z=>z>=CENTRO_Z&&z<BUILD_Z&&!!CENTRO_BB;
 /* qualidade do ano do IPTU (y0), não do ano exibido */
@@ -366,7 +392,8 @@ const LANDMARKS=[
  {pos:[-46.64900,-23.54180],y:1971,pt:"Minhocão",en:"Minhocão",dpt:"Via elevada aberta em 1971 sobre a Av. Amaral Gurgel e a São João.",den:"Elevated highway opened in 1971 above Amaral Gurgel and São João avenues."}
 ];
 const I18N={
- pt:{kicker:"Camadas",tagline:"Cada edificação de São Paulo, colorida pelo ano em que foi construída e situada na história que a formou.",m_period:"Período",m_heritage:"Patrimônio",m_floors:"Pavimentos",m_use:"Uso",m_quality:"Qualidade dos dados",about:"Sobre e método",table:"Tabela",contact:"Contato",by:"por",today:"Hoje",bld:"edificações",
+ pt:{area_btn:"Área",area_all:"Cidade toda",area_title:"Escolha a área",area_txt:"As edificações aparecem só na área escolhida, e o mapa baixa só os blocos dela: quanto menor a área, mais rápido carrega. O resto da cidade continua em quadras.",area_regions:"Regiões",area_districts:"Distritos",area_go:"Ver no mapa",area_n:"{n} distritos",area_only:"Só este distrito",out_area:"Fora da área escolhida",load_b:"Carregando edificações",load_ql:"Carregando quadras",
+  kicker:"Camadas",tagline:"Cada edificação de São Paulo, colorida pelo ano em que foi construída e situada na história que a formou.",m_period:"Período",m_heritage:"Patrimônio",m_floors:"Pavimentos",m_use:"Uso",m_quality:"Qualidade dos dados",about:"Sobre e método",table:"Tabela",contact:"Contato",by:"por",today:"Hoje",bld:"edificações",
   loading:"carregando os 96 distritos…",skip:"Ver os dados dos distritos em tabela",search_label:"Buscar distrito",search_ph:"Buscar distrito",no_match:"Nenhum distrito encontrado",
   navhint:"Arraste para girar · botão direito ou Shift para inclinar · role para aproximar",builtin:"Construída em",unknown:"Sem ano no IPTU",unk_note:"Em geral imóveis públicos, isentos de IPTU ou fora do cadastro fiscal.",
   clickp:"Clique num período para destacá-lo. Clique numa edificação para ver os detalhes.",floors:"Pavimentos",height:"Altura",use:"Uso",std:"Padrão",units:"Unidades",bairro:"Bairro",addr:"Endereço",built_range:"Unidades construídas entre",
@@ -386,7 +413,8 @@ const I18N={
   q_lb:["Ano provavelmente preciso","1970: provável valor padrão","Ano em faixa de 5 anos (antes de 1960)","Sem ano no IPTU, fora de favelas, loteamentos e ZEIS-1","Volume estimado pelo lote","Sem ano no IPTU, em favela, loteamento irregular ou ZEIS-1"],
   uses:["Residencial","Comércio e serviços","Misto","Escritórios","Indústria e galpões","Institucional e outros"],
   t_title:"Os 96 distritos",t_caption:"Clique no nome do distrito para vê-lo no mapa. Clique no título de uma coluna para ordenar.",updated:"Dados processados em"},
- en:{kicker:"Layers",tagline:"Every building in São Paulo, coloured by the year it was built and placed in the history that shaped it.",m_period:"Period",m_heritage:"Heritage",m_floors:"Floors",m_use:"Use",m_quality:"Data quality",about:"About & method",table:"Table",contact:"Contact",by:"by",today:"Today",bld:"buildings",
+ en:{area_btn:"Area",area_all:"Whole city",area_title:"Choose the area",area_txt:"Buildings show only in the chosen area, and the map downloads only its tiles: the smaller the area, the faster it loads. The rest of the city stays as blocks.",area_regions:"Regions",area_districts:"Districts",area_go:"Show on map",area_n:"{n} districts",area_only:"Only this district",out_area:"Outside the chosen area",load_b:"Loading buildings",load_ql:"Loading blocks",
+  kicker:"Layers",tagline:"Every building in São Paulo, coloured by the year it was built and placed in the history that shaped it.",m_period:"Period",m_heritage:"Heritage",m_floors:"Floors",m_use:"Use",m_quality:"Data quality",about:"About & method",table:"Table",contact:"Contact",by:"by",today:"Today",bld:"buildings",
   loading:"loading the 96 districts…",skip:"View district data as a table",search_label:"Search district",search_ph:"Search district",no_match:"No district found",
   navhint:"Drag to rotate · right-click or Shift to tilt · scroll to zoom",builtin:"Built in",unknown:"No year in tax records",unk_note:"Usually public or tax-exempt property, or outside the tax register.",
   clickp:"Click a period to highlight it. Click a building for details.",floors:"Floors",height:"Height",use:"Use",std:"Standard",units:"Units",bairro:"Neighbourhood",addr:"Address",built_range:"Units built between",
@@ -554,16 +582,16 @@ let OUTL=[];
    o deck.gl arredonda o zoom: entre 13 e 13,5 o deslocamento 2 ainda pede os blocos z15, os únicos completos */
 function bLayer(centro){
   const off=!centro&&view.zoom<13.5?2:1;
-  return new deck.MVTLayer({id:'b',data:'pmtiles://{z}/{x}/{y}',fetch:pmFetch,minZoom:15,maxZoom:16,zoomOffset:off,binary:true,extent:centro?CENTRO_BB:null,
+  return new deck.MVTLayer({id:'b',data:'pmtiles://{z}/{x}/{y}',fetch:pmFetch,minZoom:15,maxZoom:16,zoomOffset:off,binary:true,extent:centro?CENTRO_BB:AREA_BB,
     extruded:true,stroked:false,pickable:true,autoHighlight:true,highlightColor:[255,255,255,110],
     getElevation:f=>isQ(f)?0:f.properties.h,getFillColor:bColor,
     material:{ambient:.5,diffuse:.6,shininess:12,specularColor:[30,28,24]},
-    extensions:[new deck.DataFilterExtension({filterSize:2})],
-    getFilterValue:f=>isQ(f)?[0,0]:[yearOf(f.properties)||NO_YEAR,CENTRO.has(f.properties.d)?1:0],filterRange:[[0,cutoff],[centro?1:0,1]],
+    extensions:[new deck.DataFilterExtension({filterSize:3})],
+    getFilterValue:f=>isQ(f)?[0,0,1]:[yearOf(f.properties)||NO_YEAR,CENTRO.has(f.properties.d)?1:0,!AREA||AREA.has(f.properties.d)?1:0],filterRange:[[0,cutoff],[centro?1:0,1],[.5,1]],
     /* o deck.gl entrega até maxRequests pedidos à fila (pmGet), que limita a PM_SLOTS simultâneos;
        cabe uma tela inteira, para a fila poder escolher o bloco do meio (com 64, o meio da tela chegava por último) */
     maxRequests:DESKTOP?256:96,maxCacheByteSize:DESKTOP?300e6:80e6,refinementStrategy:'no-overlap',
-    updateTriggers:{getFillColor:[mode,selPeriod,isDark()]},
+    updateTriggers:{getFillColor:[mode,selPeriod,isDark()],getFilterValue:[AREA_KEY]},
     onTileError:e=>console.warn('bloco',e)}); }
 /* ---------- vista de longe (quadras_longe.bin) ----------
    cabeçalho JSON e vetores: contornos em uint16 dentro do retângulo da cidade, e um valor por volume */
@@ -575,7 +603,7 @@ async function qlLoad(){ qlPedido=true;
     for(let i=0;i<pos.length;i+=2){ pos[i]=x0+v.xy[i]/65535*(x1-x0); pos[i+1]=y0+v.xy[i+1]/65535*(y1-y0); }
     QL={...v,n:cab.volumes,cd:Array.from(v.distrito,d=>String(d).padStart(2,'0')),
       data:{length:cab.volumes,startIndices:v.inicio,attributes:{getPolygon:{value:pos,size:2}}}}; renderLegend(); refresh();
-  }catch(e){ console.warn('quadras',e); } }
+  }catch(e){ qlErro=true; console.warn('quadras',e); } }
 /* parte das edificações datadas de cada volume já de pé no ano da linha do tempo (pelos anos de 0, 25, 50, 75 e 100%) */
 function qlShare(i){ if(cutoff>=NO_YEAR) return 1; const a=QL.anos_quartis, k=i*5; if(!a[k]||a[k]>cutoff) return 0;
   for(let j=1;j<5;j++){ const y=a[k+j]; if(y>cutoff){ const p=a[k+j-1]; return (j-1+(cutoff-p)/(y-p))/4; } } return 1; }
@@ -589,16 +617,17 @@ function qlColor(_,{index:i}){ let c;
   else if(mode==='quality') c=Q_COLORS[QL.qualidade[i]];
   else c=USE_COLORS[QL.uso[i]];
   return [c[0],c[1],c[2],255]; }
-const qlElev=(_,{index:i})=>QL.h_dm[i]/10*qlShare(i), qlFilter=(_,{index:i})=>[QL.anos_quartis[i*5]||NO_YEAR,CENTRO.has(QL.cd[i])?1:0];
+const qlElev=(_,{index:i})=>QL.h_dm[i]/10*qlShare(i), qlFilter=(_,{index:i})=>[QL.anos_quartis[i*5]||NO_YEAR,CENTRO.has(QL.cd[i])?1:0,AREA&&AREA.has(QL.cd[i])?1:0];
 /* a altura cresce com a parte já de pé, como nos hexágonos; QL.data é sempre o mesmo objeto, para o deck.gl não refazer os contornos a cada quadro */
 function qLayer(){
   return new deck.SolidPolygonLayer({id:'ql',data:QL.data,_normalize:false,
     extruded:true,pickable:true,autoHighlight:true,highlightColor:[255,255,255,110],
     getElevation:qlElev,getFillColor:qlColor,
     material:{ambient:.5,diffuse:.6,shininess:12,specularColor:[30,28,24]},
-    extensions:[new deck.DataFilterExtension({filterSize:2})],
-    getFilterValue:qlFilter,filterRange:[[0,cutoff],[0,centroView(view.zoom)?0:1]],
-    updateTriggers:{getFillColor:[mode,selPeriod,mode==='period'?cutoff:0],getElevation:[cutoff]}}); }
+    extensions:[new deck.DataFilterExtension({filterSize:3})],
+    /* de perto, com uma área escolhida, os volumes ficam só fora dela */
+    getFilterValue:qlFilter,filterRange:[[0,cutoff],[0,centroView(view.zoom)?0:1],[0,view.zoom>=BUILD_Z?0:1]],
+    updateTriggers:{getFillColor:[mode,selPeriod,mode==='period'?cutoff:0],getElevation:[cutoff],getFilterValue:[AREA_KEY]}}); }
 function pickLayer(){ return picked&&(yearOf(picked.properties)||NO_YEAR)<=cutoff?new deck.GeoJsonLayer({id:'pick',data:[picked],extruded:true,getElevation:f=>f.properties.h+0.4,getFillColor:[255,255,255,255],material:{ambient:.8,diffuse:.4}}):null; }
 function layers(){
   const z=view.zoom, city=z<BUILD_Z, dark=isDark(), lineC=hex(css('--muted')||'#6e6e73'), acc=hex(css('--accent')||'#0071e3');
@@ -616,6 +645,7 @@ function layers(){
     L.push(new deck.PathLayer({id:'distline',data:OUTL,getPath:d=>d.path,getColor:d=>d.cd===scopeCd?[...acc,255]:[...lineC,dark?90:70],getWidth:d=>d.cd===scopeCd?3:1,widthUnits:'pixels',updateTriggers:{getColor:[scopeCd,dark],getWidth:[scopeCd]}}));
   } else {
     L.push(...hexLayers(z));
+    if(AREA&&QL) L.push(qLayer());
     L.push(bLayer(false));
     { const pk=pickLayer(); if(pk) L.push(pk); }
     L.push(new deck.PathLayer({id:'distline',data:OUTL,getPath:d=>d.path,getColor:[...lineC,140],getWidth:1.5,widthUnits:'pixels',parameters:{depthTest:false},updateTriggers:{getColor:[dark]}}));
@@ -723,11 +753,12 @@ function showDistrict(p){
      <dt>${T('zeis')}</dt><dd>${fmt(p.edif_em_zeis1)}</dd>
      <dt>${T('tombadas')}</dt><dd>${fmt(p.edif_tombadas)}</dd>
    </dl>
-   <div class="acts"><button class="primary" data-act="in">${T('zoom_btn')}</button><button data-act="fit">${T('fit')}</button></div>`}`;
+   <div class="acts"><button class="primary" data-act="in">${T('zoom_btn')}</button><button data-act="fit">${T('fit')}</button><button data-act="only">${AREA&&AREA.size===1&&AREA.has(p.cd)?T('area_all'):T('area_only')}</button></div>`}`;
   el.hidden=false;
   el.querySelector('.close').onclick=()=>{ el.hidden=true; };
   const bi=el.querySelector('[data-act="in"]'); if(bi) bi.onclick=()=>flyTo({longitude:p.rotulo[0],latitude:p.rotulo[1],zoom:15.6,pitch:52,bearing:-18});
   const bf=el.querySelector('[data-act="fit"]'); if(bf) bf.onclick=()=>fitDistrict(p.cd);
+  const bo=el.querySelector('[data-act="only"]'); if(bo) bo.onclick=()=>{ if(AREA&&AREA.size===1&&AREA.has(p.cd)) setArea(null); else { setArea(new Set([p.cd])); flyToArea(); } showDistrict(p); };
 }
 async function ensureExtras(){
   if(!HISTD) HISTD=fetch('historical_dates.json').then(r=>r.ok?r.json():null).catch(()=>null);
@@ -814,6 +845,54 @@ function setScope(cd,{fly=false,card=true}={}){
   else { document.getElementById('card').hidden=true; if(view&&view.zoom<BUILD_Z&&fly!==false) flyTo(cityView()); }
   updateYear(); renderLegend(); drawHist(); refresh();
 }
+/* ---------- área escolhida ---------- */
+function regionsOf(){ const G={}; for(const f of D){ const p=f.properties; (G[p.regiao]=G[p.regiao]||[]).push(p); } for(const k in G) G[k].sort((a,b)=>a.nome.localeCompare(b.nome,LOC())); return G; }
+function setArea(cds){
+  AREA=cds&&cds.size?new Set(cds):null; AREA_BB=null; AREA_KEY=AREA?[...AREA].sort().join(','):'';
+  if(AREA){ let x0=180,y0=90,x1=-180,y1=-90; for(const f of D) if(AREA.has(f.properties.cd)){ const [[a,b],[c,d]]=bboxOf(f); x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,c);y1=Math.max(y1,d); } AREA_BB=[x0,y0,x1,y1]; }
+  /* fora da área, de perto, aparecem os volumes das quadras */
+  if(AREA&&!QL&&!qlPedido) qlLoad();
+  areaLabel(); refresh(); }
+function areaName(){ if(!AREA) return T('area_all');
+  const G=regionsOf(), full=Object.keys(G).filter(k=>G[k].every(p=>AREA.has(p.cd)));
+  if(full.length&&full.reduce((n,k)=>n+G[k].length,0)===AREA.size) return full.sort((a,b)=>a.localeCompare(b,LOC())).join(' + ');
+  if(AREA.size===1) return D.find(f=>AREA.has(f.properties.cd)).properties.nome;
+  return T('area_n').replace('{n}',AREA.size); }
+function areaLabel(){ const b=document.getElementById('areaBtn'); b.textContent=T('area_btn')+': '+areaName(); b.classList.toggle('on',!!AREA); }
+function renderArea(){ const G=regionsOf(), ks=Object.keys(G).sort((a,b)=>a.localeCompare(b,LOC())), b=document.getElementById('areaBody');
+  const chip=(attr,txt)=>`<button class="achip" ${attr} aria-pressed="false">${esc(txt)}</button>`;
+  b.innerHTML=`<h2 id="areaTitle">${T('area_title')}</h2><p>${T('area_txt')}</p>
+   <div class="aacts"><span id="areaNow"></span><button id="areaGo">${T('area_go')}</button></div>
+   <h3>${T('area_regions')}</h3><div class="achips">${chip('data-all',T('area_all'))}${ks.map(k=>chip(`data-reg="${esc(k)}"`,k)).join('')}</div>
+   <h3>${T('area_districts')}</h3>${ks.map(k=>`<h4>${esc(k)}</h4><div class="achips">${G[k].map(p=>chip(`data-cd="${p.cd}"`,p.nome)).join('')}</div>`).join('')}`;
+  const sync=()=>{ b.querySelector('[data-all]').setAttribute('aria-pressed',!AREA);
+    b.querySelectorAll('[data-reg]').forEach(x=>x.setAttribute('aria-pressed',!!AREA&&G[x.dataset.reg].every(p=>AREA.has(p.cd))));
+    b.querySelectorAll('[data-cd]').forEach(x=>x.setAttribute('aria-pressed',!!AREA&&AREA.has(x.dataset.cd)));
+    document.getElementById('areaNow').textContent=T('area_btn')+': '+areaName(); };
+  b.querySelector('[data-all]').onclick=()=>{ setArea(null); sync(); };
+  b.querySelectorAll('[data-reg]').forEach(x=>x.onclick=()=>{ const s=new Set(AREA||[]), ps=G[x.dataset.reg], on=ps.every(p=>s.has(p.cd)); for(const p of ps) on?s.delete(p.cd):s.add(p.cd); setArea(s); sync(); });
+  b.querySelectorAll('[data-cd]').forEach(x=>x.onclick=()=>{ const s=new Set(AREA||[]), cd=x.dataset.cd; s.has(cd)?s.delete(cd):s.add(cd); setArea(s); sync(); });
+  document.getElementById('areaGo').onclick=()=>{ closeDialog('areaDlg'); flyToArea(); };
+  sync(); }
+function flyToArea(){ if(!AREA){ flyTo(cityView()); return; }
+  const v=fitView([[AREA_BB[0],AREA_BB[1]],[AREA_BB[2],AREA_BB[3]]],20,true);
+  if(v.zoom>=BUILD_Z){ flyTo({...v,zoom:Math.min(v.zoom,15.6),pitch:50,bearing:-12}); return; }
+  /* área grande demais para caber com as edificações: vai até o distrito mais perto do meio dela */
+  const cx=(AREA_BB[0]+AREA_BB[2])/2, cy=(AREA_BB[1]+AREA_BB[3])/2; let best=null, bd=Infinity;
+  for(const f of D){ const p=f.properties; if(!AREA.has(p.cd)) continue; const d=(p.rotulo[0]-cx)**2+(p.rotulo[1]-cy)**2; if(d<bd){ bd=d; best=p; } }
+  flyTo({longitude:best.rotulo[0],latitude:best.rotulo[1],zoom:BUILD_Z+.4,pitch:50,bearing:-12}); }
+/* aviso de carregamento: aparece quando a espera passa de meio segundo */
+let loadSince=0, loadT=null, loadShown='';
+function updateLoadNote(){ const el=document.getElementById('loadnote'); if(!view) return;
+  let txt='', pct='';
+  const L=deckgl&&deckgl.layerManager.getLayers().find(l=>l.id==='b'), sel=L&&L.state.tileset&&L.state.tileset.selectedTiles;
+  if(sel&&sel.length){ const n=sel.filter(t=>t.isLoaded).length; if(n<sel.length){ txt=T('load_b'); pct=' '+Math.round(100*n/sel.length)+'%'; } }
+  if(!txt&&qlPedido&&!QL&&!qlErro&&(view.zoom>=LONGE_Z&&view.zoom<BUILD_Z||AREA&&view.zoom>=BUILD_Z)) txt=T('load_ql');
+  if(!txt){ loadSince=0; clearTimeout(loadT); loadT=null; if(!el.hidden){ el.hidden=true; loadShown=''; } return; }
+  if(!loadSince) loadSince=performance.now();
+  if(performance.now()-loadSince<500){ if(!loadT) loadT=setTimeout(()=>{ loadT=null; updateLoadNote(); },520); return; }
+  if(loadShown!==txt+pct){ loadShown=txt+pct; document.getElementById('loadtxt').textContent=txt+'…'; document.getElementById('loadpct').textContent=pct; }
+  el.hidden=false; }
 function inRing(p,r){ let c=false; for(let i=0,j=r.length-1;i<r.length;j=i++){ const [xi,yi]=r[i],[xj,yj]=r[j]; if((yi>p[1])!==(yj>p[1])&&p[0]<(xj-xi)*(p[1]-yi)/(yj-yi)+xi) c=!c; } return c; }
 function districtAt(pt){ for(const f of D) for(const poly of geomRings(f.geometry)) if(inRing(pt,poly[0])&&!poly.slice(1).some(h=>inRing(pt,h))) return f.properties.cd; return null; }
 let followT=null, wasCity=null, wasHex=null, wasCentro=null;
@@ -981,7 +1060,9 @@ function applyLang(){
   document.getElementById('q').placeholder=T('search_ph');
   document.getElementById('lang-pt').setAttribute('aria-pressed',lang==='pt'); document.getElementById('lang-en').setAttribute('aria-pressed',lang==='en');
   document.querySelectorAll('.close').forEach(b=>b.setAttribute('aria-label',T('close')));
+  areaLabel(); loadShown='';
   if(!META) return;
+  if(!document.getElementById('areaDlg').hidden) renderArea();
   renderAbout(); if(!document.getElementById('tableDlg').hidden) renderTable();
   updateYear(); renderLegend(); updateZoomHint(); refresh();
   const c=document.getElementById('card'); if(!c.hidden){ if(picked) showBuilding(picked); else if(scopeCd) showDistrict(scopeP()); }
@@ -1015,11 +1096,11 @@ function init(){
     useDevicePixels:DESKTOP?true:Math.min(window.devicePixelRatio||1,1.5),
     onViewStateChange:({viewState})=>{ onView(viewState); },
     /* depois de cada quadro, a fila confere de novo quais blocos o deck.gl quer */
-    onAfterRender:()=>{ if(pmQ.length&&pmBusy<PM_SLOTS) pmNext(); },
+    onAfterRender:()=>{ if(pmQ.length&&pmBusy<PM_SLOTS) pmNext(); updateLoadNote(); },
     getCursor:({isHovering,isDragging})=>isDragging?'grabbing':isHovering?'pointer':'grab',
     onClick:info=>{
       const o=info.object, id=info.layer&&info.layer.id;
-      if(id==='ql'&&info.coordinate){ flyTo({longitude:info.coordinate[0],latitude:info.coordinate[1],zoom:BUILD_Z+1.6,pitch:52,bearing:view.bearing}); return; }
+      if(id==='ql'&&info.coordinate){ if(view.zoom<BUILD_Z) flyTo({longitude:info.coordinate[0],latitude:info.coordinate[1],zoom:BUILD_Z+1.6,pitch:52,bearing:view.bearing}); return; }
       if(!o){ if(view.zoom>=BUILD_Z) closeCard(); return; }
       if(id==='dist3d'){ setScope(o.properties.cd); return; }
       if(id==='hex'||id==='hexc'){ flyTo({longitude:o[0],latitude:o[1],zoom:BUILD_Z+1.6,pitch:52,bearing:view.bearing}); return; }
@@ -1028,10 +1109,10 @@ function init(){
     },
     getTooltip:({object,layer,index})=>{
       if(layer&&layer.id==='ql'&&index>=0){ const pt=lang==='pt', h=fmt(QL.h_dm[index]/10), y=QL.ano_medio[index]?fy(QL.ano_medio[index]):'—';
-        return {text:QL.inteira[index]?`${pt?'Edificação de':'Building,'} ${h} m
+        return {text:(view.zoom>=BUILD_Z?T('out_area')+'\n':'')+(QL.inteira[index]?`${pt?'Edificação de':'Building,'} ${h} m
 ${y}`:`${fmt(QL.n[index])} ${T('bld')}
 ${T('mean_y')}: ${y}
-${pt?'Altura média':'Mean height'}: ${h} m`,
+${pt?'Altura média':'Mean height'}: ${h} m`),
           style:{fontFamily:'-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif',fontSize:'12px',fontWeight:'500',background:'rgba(28,28,30,.86)',color:'#fff',borderRadius:'10px',padding:'7px 10px',boxShadow:'0 6px 20px rgba(0,0,0,.18)',whiteSpace:'pre-line',maxWidth:'280px'}}; }
       if(!object||!layer) return null;
       const st={fontFamily:'-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif',fontSize:'12px',fontWeight:'500',background:'rgba(28,28,30,.86)',color:'#fff',borderRadius:'10px',padding:'7px 10px',boxShadow:'0 6px 20px rgba(0,0,0,.18)',whiteSpace:'pre-line',maxWidth:'280px'};
@@ -1069,12 +1150,14 @@ document.getElementById('lang-en').onclick=()=>{lang='en';try{localStorage.setIt
 document.getElementById('aboutBtn').onclick=()=>openAbout('metodo');
 const openTable=()=>{ if(!META) return; renderTable(); openDialog('tableDlg'); };
 document.getElementById('tableBtn').onclick=openTable;
+document.getElementById('areaBtn').onclick=()=>{ if(!META) return; renderArea(); openDialog('areaDlg'); };
+document.getElementById('areaClose').onclick=()=>closeDialog('areaDlg');
 document.getElementById('skipTable').onclick=e=>{ e.preventDefault(); openTable(); };
 document.getElementById('byline').onclick=e=>{e.preventDefault();openAbout('contato');};
 document.getElementById('aboutClose').onclick=()=>closeDialog('about');
 document.getElementById('tableClose').onclick=()=>closeDialog('tableDlg');
-for(const id of ['about','tableDlg']) document.getElementById(id).onclick=e=>{ if(e.target.id===id) closeDialog(id); };
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ for(const id of ['about','tableDlg']) if(!document.getElementById(id).hidden) closeDialog(id); } });
+for(const id of ['about','tableDlg','areaDlg']) document.getElementById(id).onclick=e=>{ if(e.target.id===id) closeDialog(id); };
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ for(const id of ['about','tableDlg','areaDlg']) if(!document.getElementById(id).hidden) closeDialog(id); } });
 applyLang();
 load().catch(err=>{ document.getElementById('loading').textContent=(lang==='pt'?'Não foi possível carregar os dados: ':'Could not load the data: ')+err.message; });
 })();
