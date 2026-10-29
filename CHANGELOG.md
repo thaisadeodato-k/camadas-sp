@@ -28,6 +28,12 @@ Resultado:
 - Com ano no IPTU: 89,5% → 89,5%.
 - Distritos que mais mudaram: BELA VISTA (5.658 → 5.659).
 
+## 2026-10-29: só as edificações da área
+
+- O site não baixa mais as quadras da cidade toda (quadras_longe.bin, cerca de 4 MB): de longe, os distritos; de perto, só as edificações da área escolhida, e fora dela os contornos dos distritos.
+- Dentro do retângulo da área, só saem os blocos de mapa que tocam algum distrito escolhido: com a região Centro, a vista do centro no zoom 13 pediu 45 blocos em vez de 57.
+- De perto, fora da área, a dica embaixo do mapa oferece "Mostrar <distrito>" para acrescentar o distrito do meio da tela.
+
 ## 2026-10-29: começa pelo centro, sem hexágonos
 
 - O mapa começa só com as edificações da região Centro (8 distritos); as outras regiões entram pelo botão Área. Buscar um distrito, abri-lo pela tabela ou clicar numa quadra para aproximar acrescenta aquele distrito à área.

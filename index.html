@@ -368,7 +368,7 @@ const NO_YEAR=2100, BUILD_Z=DESKTOP?13:13.5, DIST_H=3000;
 const CENTRO_Z=BUILD_Z;
 let CENTRO=new Set(), CENTRO_BB=null;
 /* área escolhida (botão Área): só as edificações destes distritos aparecem, e só os blocos do retângulo deles são pedidos; null = cidade toda */
-let AREA=null, AREA_BB=null, AREA_KEY='';
+let AREA=null, AREA_BB=null, AREA_BBS=null, AREA_KEY='';
 /* vista de longe: cada quadra vira um volume com a altura média das suas edificações baixas, e as de 30 m ou mais ficam inteiras
    (quadras_longe.bin, gera_site.py longe: um arquivo só, baixado logo depois do primeiro desenho; os distritos só se apagam depois que ele chega)
    (se CENTRO_Z voltar a ser menor que BUILD_Z, os volumes saem do centro enquanto ali aparecem as próprias edificações) */
@@ -392,7 +392,7 @@ const LANDMARKS=[
  {pos:[-46.64900,-23.54180],y:1971,pt:"Minhocão",en:"Minhocão",dpt:"Via elevada aberta em 1971 sobre a Av. Amaral Gurgel e a São João.",den:"Elevated highway opened in 1971 above Amaral Gurgel and São João avenues."}
 ];
 const I18N={
- pt:{area_btn:"Área",area_all:"Cidade toda",area_title:"Escolha a área",area_txt:"As edificações aparecem só na área escolhida, e o mapa baixa só os blocos dela: quanto menor a área, mais rápido carrega. O resto da cidade continua em quadras.",area_regions:"Regiões",area_districts:"Distritos",area_go:"Ver no mapa",area_n:"{n} distritos",area_only:"Só este distrito",out_area:"Fora da área escolhida",load_b:"Carregando edificações",load_ql:"Carregando quadras",
+ pt:{area_btn:"Área",area_all:"Cidade toda",area_title:"Escolha a área",area_txt:"As edificações aparecem só na área escolhida, e o mapa baixa só os blocos dela: quanto menor a área, mais rápido carrega. Fora dela, ficam só os contornos dos distritos.",area_add:"Mostrar {d}",area_regions:"Regiões",area_districts:"Distritos",area_go:"Ver no mapa",area_n:"{n} distritos",area_only:"Só este distrito",out_area:"Fora da área escolhida",load_b:"Carregando edificações",load_ql:"Carregando quadras",
   kicker:"Camadas",tagline:"Cada edificação de São Paulo, colorida pelo ano em que foi construída e situada na história que a formou.",m_period:"Período",m_heritage:"Patrimônio",m_floors:"Pavimentos",m_use:"Uso",m_quality:"Qualidade dos dados",about:"Sobre e método",table:"Tabela",contact:"Contato",by:"por",today:"Hoje",bld:"edificações",
   loading:"carregando os 96 distritos…",skip:"Ver os dados dos distritos em tabela",search_label:"Buscar distrito",search_ph:"Buscar distrito",no_match:"Nenhum distrito encontrado",
   navhint:"Arraste para girar · botão direito ou Shift para inclinar · role para aproximar",builtin:"Construída em",unknown:"Sem ano no IPTU",unk_note:"Em geral imóveis públicos, isentos de IPTU ou fora do cadastro fiscal.",
@@ -413,7 +413,7 @@ const I18N={
   q_lb:["Ano provavelmente preciso","1970: provável valor padrão","Ano em faixa de 5 anos (antes de 1960)","Sem ano no IPTU, fora de favelas, loteamentos e ZEIS-1","Volume estimado pelo lote","Sem ano no IPTU, em favela, loteamento irregular ou ZEIS-1"],
   uses:["Residencial","Comércio e serviços","Misto","Escritórios","Indústria e galpões","Institucional e outros"],
   t_title:"Os 96 distritos",t_caption:"Clique no nome do distrito para vê-lo no mapa. Clique no título de uma coluna para ordenar.",updated:"Dados processados em"},
- en:{area_btn:"Area",area_all:"Whole city",area_title:"Choose the area",area_txt:"Buildings show only in the chosen area, and the map downloads only its tiles: the smaller the area, the faster it loads. The rest of the city stays as blocks.",area_regions:"Regions",area_districts:"Districts",area_go:"Show on map",area_n:"{n} districts",area_only:"Only this district",out_area:"Outside the chosen area",load_b:"Loading buildings",load_ql:"Loading blocks",
+ en:{area_btn:"Area",area_all:"Whole city",area_title:"Choose the area",area_txt:"Buildings show only in the chosen area, and the map downloads only its tiles: the smaller the area, the faster it loads. Outside it, only the district outlines remain.",area_add:"Show {d}",area_regions:"Regions",area_districts:"Districts",area_go:"Show on map",area_n:"{n} districts",area_only:"Only this district",out_area:"Outside the chosen area",load_b:"Loading buildings",load_ql:"Loading blocks",
   kicker:"Layers",tagline:"Every building in São Paulo, coloured by the year it was built and placed in the history that shaped it.",m_period:"Period",m_heritage:"Heritage",m_floors:"Floors",m_use:"Use",m_quality:"Data quality",about:"About & method",table:"Table",contact:"Contact",by:"by",today:"Today",bld:"buildings",
   loading:"loading the 96 districts…",skip:"View district data as a table",search_label:"Search district",search_ph:"Search district",no_match:"No district found",
   navhint:"Drag to rotate · right-click or Shift to tilt · scroll to zoom",builtin:"Built in",unknown:"No year in tax records",unk_note:"Usually public or tax-exempt property, or outside the tax register.",
@@ -505,7 +505,8 @@ function dElev(p){
   const share=cutoff>=NO_YEAR?1:Math.min(1,standing(p)/p.edificacoes);
   return Math.min(p.densidade_construida,CAP.dens)/CAP.dens*DIST_H*share; }
 const clamp01=v=>Math.min(1,Math.max(0,v));
-/* distritos somem entre z 10,9 e 11,9, enquanto as quadras aparecem (só depois que quadras_longe.bin chegou) */
+/* distritos somem entre z 10,9 e 11,9, enquanto as quadras aparecem (só depois que quadras_longe.bin chegou)
+   DESLIGADO desde 2026-10-29: o site não baixa mais as quadras (qlLoad não é chamado), então os distritos ficam até as edificações */
 const nearT=z=>QL?clamp01((z-LONGE_Z+.6)/1):0;
 const elevScale=z=>Math.min(1,Math.pow(2,10.4-z))*(1-nearT(z));
 
@@ -515,13 +516,18 @@ const PM=new pmtiles.PMTiles('tiles/edificacoes.pmtiles');
 /* fila própria: o deck.gl pede os blocos na ordem da grade; aqui sai primeiro o mais perto do centro da tela
    e só os que o deck.gl ainda quer mostrar (os que ficaram para trás num voo esperam até ele cancelá-los) */
 const PM_SLOTS=DESKTOP?8:4, pmQ=[]; let pmBusy=0;
+/* o bloco toca o retângulo de algum distrito escolhido? (o retângulo da área toda pode juntar distritos distantes) */
+const tileLat=(y,n)=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*180/Math.PI;
+function inAreaTile(z,x,y){ if(!AREA_BBS) return true; const n=2**z, w=x/n*360-180, e=(x+1)/n*360-180, N=tileLat(y,n), S=tileLat(y+1,n);
+  return AREA_BBS.some(b=>e>=b[0]&&w<=b[2]&&N>=b[1]&&S<=b[3]); }
 function pmNext(){
   const L=deckgl&&deckgl.layerManager&&deckgl.layerManager.getLayers().find(l=>l.id==='b'), sel=L&&L.state.tileset&&L.state.tileset.selectedTiles;
   const S=sel&&sel.length?new Set(sel.map(t=>t.index.z+'/'+t.index.x+'/'+t.index.y)):null;
   while(pmBusy<PM_SLOTS&&pmQ.length){
     const v=view||{longitude:-46.6375,latitude:-23.5445}, s=Math.sin(v.latitude*Math.PI/180);
     let bi=-1, bd=Infinity;
-    for(let i=0;i<pmQ.length;i++){ const t=pmQ[i]; if(S&&!S.has(t.z+'/'+t.x+'/'+t.y)) continue;
+    /* os blocos fora dos distritos escolhidos esperam: saem se a área crescer, ou o deck.gl os cancela */
+    for(let i=0;i<pmQ.length;i++){ const t=pmQ[i]; if(S&&!S.has(t.z+'/'+t.x+'/'+t.y)||!inAreaTile(t.z,t.x,t.y)) continue;
       const n=2**t.z, cx=(v.longitude+180)/360*n, cy=(.5-Math.log((1+s)/(1-s))/(4*Math.PI))*n, d=(t.x+.5-cx)**2+(t.y+.5-cy)**2; if(d<bd){ bd=d; bi=i; } }
     if(bi<0) return;
     const t=pmQ.splice(bi,1)[0]; pmBusy++;
@@ -609,7 +615,6 @@ function layers(){
       getElevation:f=>dElev(f.properties),elevationScale:elevScale(z),getFillColor:f=>{ const c=dColor(f.properties); return [c[0],c[1],c[2],Math.round(c[3]*(1-nearT(z)))]; },pickable:nearT(z)<.5,
       material:{ambient:.55,diffuse:.55,shininess:8,specularColor:[30,28,24]},
       updateTriggers:{getFillColor:[mode,dark,Math.round(nearT(z)*20)],getElevation:[cutoff]},transitions:{getElevation:{duration:250}}}));
-    if(!QL&&!qlPedido) qlLoad();
     if(longeView(z)) L.push(qLayer());
     if(centroView(z)){ L.push(bLayer(true)); const pk=pickLayer(); if(pk) L.push(pk); }
     L.push(new deck.PathLayer({id:'distline',data:OUTL,getPath:d=>d.path,getColor:d=>d.cd===scopeCd?[...acc,255]:[...lineC,dark?90:70],getWidth:d=>d.cd===scopeCd?3:1,widthUnits:'pixels',updateTriggers:{getColor:[scopeCd,dark],getWidth:[scopeCd]}}));
@@ -818,11 +823,9 @@ function setScope(cd,{fly=false,card=true}={}){
 /* ---------- área escolhida ---------- */
 function regionsOf(){ const G={}; for(const f of D){ const p=f.properties; (G[p.regiao]=G[p.regiao]||[]).push(p); } for(const k in G) G[k].sort((a,b)=>a.nome.localeCompare(b.nome,LOC())); return G; }
 function setArea(cds){
-  AREA=cds&&cds.size?new Set(cds):null; AREA_BB=null; AREA_KEY=AREA?[...AREA].sort().join(','):'';
-  if(AREA){ let x0=180,y0=90,x1=-180,y1=-90; for(const f of D) if(AREA.has(f.properties.cd)){ const [[a,b],[c,d]]=bboxOf(f); x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,c);y1=Math.max(y1,d); } AREA_BB=[x0,y0,x1,y1]; }
-  /* fora da área, de perto, aparecem os volumes das quadras */
-  if(AREA&&!QL&&!qlPedido) qlLoad();
-  areaLabel(); refresh(); }
+  AREA=cds&&cds.size?new Set(cds):null; AREA_BB=null; AREA_BBS=null; AREA_KEY=AREA?[...AREA].sort().join(','):'';
+  if(AREA){ let x0=180,y0=90,x1=-180,y1=-90; AREA_BBS=[]; for(const f of D) if(AREA.has(f.properties.cd)){ const [[a,b],[c,d]]=bboxOf(f); AREA_BBS.push([a,b,c,d]); x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,c);y1=Math.max(y1,d); } AREA_BB=[x0,y0,x1,y1]; }
+  areaLabel(); updateZoomHint(); refresh(); pmNext(); }
 function areaName(){ if(!AREA) return T('area_all');
   const G=regionsOf(), full=Object.keys(G).filter(k=>G[k].every(p=>AREA.has(p.cd)));
   if(full.length&&full.reduce((n,k)=>n+G[k].length,0)===AREA.size) return full.sort((a,b)=>a.localeCompare(b,LOC())).join(' + ');
@@ -856,7 +859,8 @@ let loadSince=0, loadT=null, loadShown='';
 function updateLoadNote(){ const el=document.getElementById('loadnote'); if(!view) return;
   let txt='', pct='';
   const L=deckgl&&deckgl.layerManager.getLayers().find(l=>l.id==='b'), sel=L&&L.state.tileset&&L.state.tileset.selectedTiles;
-  if(sel&&sel.length){ const n=sel.filter(t=>t.isLoaded).length; if(n<sel.length){ txt=T('load_b'); pct=' '+Math.round(100*n/sel.length)+'%'; } }
+  const want=sel&&sel.filter(t=>inAreaTile(t.index.z,t.index.x,t.index.y));
+  if(want&&want.length){ const n=want.filter(t=>t.isLoaded).length; if(n<want.length){ txt=T('load_b'); pct=' '+Math.round(100*n/want.length)+'%'; } }
   if(!txt&&qlPedido&&!QL&&!qlErro&&(view.zoom>=LONGE_Z&&view.zoom<BUILD_Z||AREA&&view.zoom>=BUILD_Z)) txt=T('load_ql');
   if(!txt){ loadSince=0; clearTimeout(loadT); loadT=null; if(!el.hidden){ el.hidden=true; loadShown=''; } return; }
   if(!loadSince) loadSince=performance.now();
@@ -872,9 +876,11 @@ function onView(vs){
   else if(ce!==wasCentro){ wasCentro=ce; if(!centroView(vs.zoom)&&city) picked=null; renderLegend(); }
   refresh();
   /* aproximado: a legenda acompanha o distrito no centro do mapa */
-  if(!city){ clearTimeout(followT); followT=setTimeout(()=>{ const cd=districtAt([vs.longitude,vs.latitude]); if(cd&&cd!==scopeCd){ scopeCd=cd; const c=document.getElementById('card'); if(!picked&&c.querySelector('.dname')) c.hidden=true; updateYear(); renderLegend(); drawHist(); } },250); }
+  if(!city){ clearTimeout(followT); followT=setTimeout(()=>{ const cd=districtAt([vs.longitude,vs.latitude]); if(cd&&cd!==scopeCd){ scopeCd=cd; const c=document.getElementById('card'); if(!picked&&c.querySelector('.dname')) c.hidden=true; updateYear(); renderLegend(); drawHist(); updateZoomHint(); } },250); }
 }
 function updateZoomHint(){ const el=document.getElementById('zoomhint'); if(!view) return; const city=view.zoom<BUILD_Z;
+  const fora=!city&&AREA&&scopeCd&&!AREA.has(scopeCd)&&scopeP();
+  if(fora){ document.getElementById('zoomhintTxt').textContent=T('out_area'); const b=document.getElementById('zoomIn'); b.textContent=T('area_add').replace('{d}',fora.nome); b.onclick=()=>ensureInArea(fora.cd); el.hidden=false; return; }
   document.getElementById('zoomhintTxt').textContent=city?T('zoom_more'):T('zoom_out_txt');
   const b=document.getElementById('zoomIn'); b.textContent=city?T('zoom_btn'):T('zoom_out');
   b.onclick=()=>{ if(city){ const p=scopeP(); if(p) ensureInArea(p.cd); const c=p?p.rotulo:[-46.6375,-23.5445]; flyTo({longitude:c[0],latitude:c[1],zoom:15.6,pitch:52,bearing:-18}); } else { const cd=scopeCd; cd?fitDistrict(cd):flyTo(cityView()); } };
@@ -937,7 +943,7 @@ metodo:`<h2 id="aboutTitle">Como foi feito</h2>
 <li><b>Patrimônio.</b> Edificações dentro de polígonos tombados (Conpresp, Condephaat ou Iphan) foram marcadas, com link para a resolução.</li>
 <li><b>Qualidade dos dados.</b> Cada edificação foi marcada quando está em favela (${fmt(c.edif_em_favela)}), loteamento irregular (${fmt(c.edif_em_loteamento)}) ou ZEIS-1 (${fmt(c.edif_em_zeis1)}). ${fmt(c.edif_sem_lote)} edificações estão fora de qualquer lote fiscal; ${fmt(c.edif_sem_lote_em_favela_lot_zeis1)} delas ficam nessas áreas. As áreas se sobrepõem, e ZEIS-1 é uma zona definida em lei, não um retrato da ocupação.</li>
 <li><b>Verificação.</b> Os dez distritos do centro reproduzem a versão anterior do mapa. A distribuição dos anos revelou o pico de 1970 (${fmt(c.ano_1970)} edificações, ${fmt(c.razao_1970_vizinhos,1)} vezes a média de 1969 e 1971) e o arredondamento em faixas de 5 anos (veja a camada Qualidade dos dados).</li>
-<li><b>Visualização.</b> De longe, o mapa mostra os distritos: a cor é o ano médio e a altura é a densidade construída. Ao aproximar, os distritos dão lugar às quadras: cada quadra viária vira um volume com a altura média das suas edificações (ponderada pela área de cada uma), e as de 30 m ou mais aparecem inteiras: um arquivo leve para a cidade inteira, que mostra a forma da cidade antes de cada edificação. Mais perto, aparecem as próprias edificações, servidas em blocos de mapa (PMTiles, gerados com tippecanoe) e desenhadas em 3D com deck.gl. O mapa começa com as edificações do centro (região Centro); o botão Área acrescenta outras regiões ou distritos, e só os blocos da área escolhida são baixados. Valores extremos ficam no limite da escala (95% dos distritos abaixo dele) e o valor real aparece no cartão ou ao passar o mouse.</li>
+<li><b>Visualização.</b> De longe, o mapa mostra os distritos: a cor é o ano médio e a altura é a densidade construída. Ao aproximar, aparecem as próprias edificações, servidas em blocos de mapa (PMTiles, gerados com tippecanoe) e desenhadas em 3D com deck.gl. O mapa começa com as edificações do centro (região Centro); o botão Área acrescenta outras regiões ou distritos, e só os blocos que tocam os distritos escolhidos são baixados; fora deles, ficam só os contornos dos distritos. Valores extremos ficam no limite da escala (95% dos distritos abaixo dele) e o valor real aparece no cartão ou ao passar o mouse.</li>
 </ol>
 <p class="note">Ferramentas: Python (GeoPandas, Shapely, pyproj) para o processamento, tippecanoe para os blocos de mapa e JavaScript (deck.gl, PMTiles) para o mapa. O projeto foi desenvolvido com apoio de IA (Claude); as escolhas de fonte, recorte, validação e interpretação são da autora.</p>`,
 cobertura:`<h2 id="aboutTitle">O que cobre e o que não cobre</h2>
@@ -984,7 +990,7 @@ metodo:`<h2 id="aboutTitle">How it was made</h2>
 <li><b>Heritage.</b> Buildings inside listed polygons (Conpresp, Condephaat or Iphan) were flagged, with a link to the resolution.</li>
 <li><b>Data quality.</b> Each building was flagged when it lies in a favela (${fmt(c.edif_em_favela)}), an irregular subdivision (${fmt(c.edif_em_loteamento)}) or a ZEIS-1 zone (${fmt(c.edif_em_zeis1)}). ${fmt(c.edif_sem_lote)} buildings lie outside any tax plot; ${fmt(c.edif_sem_lote_em_favela_lot_zeis1)} of them are in those areas. The areas overlap, and ZEIS-1 is a zone defined by law, not a picture of how land is occupied.</li>
 <li><b>Checks.</b> The ten downtown districts reproduce the previous version of the map. The year distribution revealed the 1970 spike (${fmt(c.ano_1970)} buildings, ${fmt(c.razao_1970_vizinhos,1)} times the mean of 1969 and 1971) and 5-year rounding (see the Data quality layer).</li>
-<li><b>Visualisation.</b> Zoomed out, the map shows districts: colour is the mean year and height is built density. Zooming in, the districts give way to city blocks: each block becomes one volume with the mean height of its buildings (weighted by each one's area), and buildings 30 m or taller show individually: a light file for the whole city, showing its shape before every building. Closer still, the buildings themselves appear, served as map tiles (PMTiles, built with tippecanoe) and drawn in 3D with deck.gl. The map starts with the buildings of the centre (the Centro region); the Area button adds other regions or districts, and only the tiles of the chosen area are downloaded. Extreme values are drawn at the scale limit (95% of districts are below it) and the real value is on the card or on hover.</li>
+<li><b>Visualisation.</b> Zoomed out, the map shows districts: colour is the mean year and height is built density. Zooming in, the buildings themselves appear, served as map tiles (PMTiles, built with tippecanoe) and drawn in 3D with deck.gl. The map starts with the buildings of the centre (the Centro region); the Area button adds other regions or districts, and only the tiles touching the chosen districts are downloaded; outside them, only the district outlines remain. Extreme values are drawn at the scale limit (95% of districts are below it) and the real value is on the card or on hover.</li>
 </ol>
 <p class="note">Tools: Python (GeoPandas, Shapely, pyproj) for processing, tippecanoe for map tiles and JavaScript (deck.gl, PMTiles) for the map. Built with AI assistance (Claude); source choice, scope, validation and interpretation are the author's.</p>`,
 cobertura:`<h2 id="aboutTitle">What it covers and what it doesn't</h2>
@@ -1050,8 +1056,6 @@ async function load(){
   let x0=180,y0=90,x1=-180,y1=-90; for(const f of D){ const [[a,b],[c,d]]=bboxOf(f); x0=Math.min(x0,a);y0=Math.min(y0,b);x1=Math.max(x1,c);y1=Math.max(y1,d); } CITY_BOUNDS=[[x0,y0],[x1,y1]];
   document.getElementById('loading').hidden=true;
   init();
-  /* as quadras chegam logo depois do primeiro desenho */
-  if(!qlPedido) qlLoad();
 }
 function hashCd(){ const m=location.hash.match(/distrito=([^&]+)/); if(!m) return null; const s=norm(decodeURIComponent(m[1])); const f=D.find(f=>norm(f.properties.nome)===s||f.properties.cd===s); return f?f.properties.cd:null; }
 function init(){

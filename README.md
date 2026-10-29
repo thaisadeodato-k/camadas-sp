@@ -8,8 +8,8 @@ Mapa 3D interativo com as **2.789.795 edificações** dos 96 distritos de São P
 
 ## O que dá para fazer no mapa
 
-- Ver a cidade em três escalas: de longe, os **96 distritos** (cor = ano médio, altura = densidade construída); ao aproximar, **cada quadra como um volume** (altura média das suas edificações, e as de 30 m ou mais inteiras); mais perto, as **próprias edificações** em 3D.
-- Escolher a **área** (regiões ou distritos): o mapa começa só com a região Centro, e o botão Área acrescenta as outras. Só as edificações da área aparecem e são baixadas; fora dela, a cidade fica em quadras. Buscar um distrito, ou clicar numa quadra para aproximar, acrescenta aquele distrito à área.
+- Ver a cidade em duas escalas: de longe, os **96 distritos** (cor = ano médio, altura = densidade construída); ao aproximar, as **próprias edificações** em 3D.
+- Escolher a **área** (regiões ou distritos): o mapa começa só com a região Centro, e o botão Área acrescenta as outras. Só as edificações da área aparecem, e só os blocos de mapa que tocam os distritos escolhidos são baixados; fora deles, ficam só os contornos dos distritos. Buscar um distrito acrescenta aquele distrito à área, e de perto, fora da área, um botão oferece mostrar o distrito do meio da tela.
 - Arrastar a **linha do tempo** e ver a cidade crescer ano a ano.
 - Alternar entre **Período**, **Patrimônio** (bens tombados), **Pavimentos**, **Uso** e **Qualidade dos dados**.
 - Buscar um distrito, abrir a **tabela dos 96 distritos** e clicar numa edificação para ver ano, fonte da data, pavimentos, uso, padrão e tombamento.
@@ -44,7 +44,7 @@ O pipeline (`pipeline/`) roda sem intervenção e guarda o progresso: se for int
 3. **Camadas do GeoSampa (WFS):** distrito por distrito, em quadrículas de 1 km, baixa edificações (com altura), lotes fiscais, quadras, bens tombados, favelas e loteamentos irregulares. As ZEIS-1 vêm de uma vez para a cidade inteira.
 4. **Cruzamentos:** lote ↔ IPTU pelo código fiscal; edificação ↔ lote pela posição. Quando o ponto da edificação cai em mais de um lote, vale o lote que tem ano no IPTU. Prédios recentes ausentes do levantamento (8.675) têm o volume estimado pelo lote.
 5. **Relatório** (`resumo.py`): métricas de qualidade por distrito e a linha de base usada nos controles.
-6. **Arquivos do site** (`gera_site.py`): resumo por distrito (`distritos.json`), hexágonos (`hexagonos.json`), bens tombados (`tombados.json`), a vista de longe por quadras (`quadras_longe.bin`, cerca de 4 MB) e a entrada dos blocos de mapa.
+6. **Arquivos do site** (`gera_site.py`): resumo por distrito (`distritos.json`), hexágonos (`hexagonos.json`), bens tombados (`tombados.json`), a vista de longe por quadras (`quadras_longe.bin`, que o site não usa mais, cerca de 4 MB) e a entrada dos blocos de mapa.
 7. **Blocos de mapa:** [tippecanoe](https://github.com/felt/tippecanoe) gera `edificacoes.pmtiles` (cerca de 260 MB), lido pelo site aos pedaços. `mede_blocos.py` mostra o tamanho dos blocos de cada nível.
 8. **Visualização:** [deck.gl](https://deck.gl) e [PMTiles](https://github.com/protomaps/PMTiles), num único `index.html`, sem etapa de build.
 
