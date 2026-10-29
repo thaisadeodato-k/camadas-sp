@@ -513,13 +513,18 @@ const elevScale=z=>Math.min(1,Math.pow(2,10.4-z))*(1-nearT(z));
 /* ---------- edificações (PMTiles) ---------- */
 const PM=new pmtiles.PMTiles('tiles/edificacoes.pmtiles');
 /* o deck.gl traz o loaders.gl embutido (window.loaders); o MVTLoader vem em layer.props.loaders */
-/* fila própria: o deck.gl pede os blocos na ordem da grade; aqui sai primeiro o mais perto do centro da tela */
+/* fila própria: o deck.gl pede os blocos na ordem da grade; aqui sai primeiro o mais perto do centro da tela
+   e só os que o deck.gl ainda quer mostrar (os que ficaram para trás num voo esperam até ele cancelá-los) */
 const PM_SLOTS=DESKTOP?8:4, pmQ=[]; let pmBusy=0;
 function pmNext(){
+  const L=deckgl&&deckgl.layerManager&&deckgl.layerManager.getLayers().find(l=>l.id==='b'), sel=L&&L.state.tileset&&L.state.tileset.selectedTiles;
+  const S=sel&&sel.length?new Set(sel.map(t=>t.index.z+'/'+t.index.x+'/'+t.index.y)):null;
   while(pmBusy<PM_SLOTS&&pmQ.length){
     const v=view||{longitude:-46.6375,latitude:-23.5445}, s=Math.sin(v.latitude*Math.PI/180);
-    let bi=0, bd=Infinity;
-    for(let i=0;i<pmQ.length;i++){ const t=pmQ[i], n=2**t.z, cx=(v.longitude+180)/360*n, cy=(.5-Math.log((1+s)/(1-s))/(4*Math.PI))*n, d=(t.x+.5-cx)**2+(t.y+.5-cy)**2; if(d<bd){ bd=d; bi=i; } }
+    let bi=-1, bd=Infinity;
+    for(let i=0;i<pmQ.length;i++){ const t=pmQ[i]; if(S&&!S.has(t.z+'/'+t.x+'/'+t.y)) continue;
+      const n=2**t.z, cx=(v.longitude+180)/360*n, cy=(.5-Math.log((1+s)/(1-s))/(4*Math.PI))*n, d=(t.x+.5-cx)**2+(t.y+.5-cy)**2; if(d<bd){ bd=d; bi=i; } }
+    if(bi<0) return;
     const t=pmQ.splice(bi,1)[0]; pmBusy++;
     t.pm.getZxy(t.z,t.x,t.y,t.signal).then(t.ok,t.err).finally(()=>{ pmBusy--; pmNext(); });
   } }
@@ -555,8 +560,9 @@ function bLayer(centro){
     material:{ambient:.5,diffuse:.6,shininess:12,specularColor:[30,28,24]},
     extensions:[new deck.DataFilterExtension({filterSize:2})],
     getFilterValue:f=>isQ(f)?[0,0]:[yearOf(f.properties)||NO_YEAR,CENTRO.has(f.properties.d)?1:0],filterRange:[[0,cutoff],[centro?1:0,1]],
-    /* o deck.gl entrega até maxRequests pedidos à fila (pmGet), que limita a PM_SLOTS simultâneos */
-    maxRequests:DESKTOP?64:32,maxCacheByteSize:DESKTOP?300e6:80e6,refinementStrategy:'no-overlap',
+    /* o deck.gl entrega até maxRequests pedidos à fila (pmGet), que limita a PM_SLOTS simultâneos;
+       cabe uma tela inteira, para a fila poder escolher o bloco do meio (com 64, o meio da tela chegava por último) */
+    maxRequests:DESKTOP?256:96,maxCacheByteSize:DESKTOP?300e6:80e6,refinementStrategy:'no-overlap',
     updateTriggers:{getFillColor:[mode,selPeriod,isDark()]},
     onTileError:e=>console.warn('bloco',e)}); }
 /* ---------- vista de longe (quadras_longe.bin) ----------
@@ -1008,6 +1014,8 @@ function init(){
     controller:{inertia:true},layers:[],effects:makeEffects(),
     useDevicePixels:DESKTOP?true:Math.min(window.devicePixelRatio||1,1.5),
     onViewStateChange:({viewState})=>{ onView(viewState); },
+    /* depois de cada quadro, a fila confere de novo quais blocos o deck.gl quer */
+    onAfterRender:()=>{ if(pmQ.length&&pmBusy<PM_SLOTS) pmNext(); },
     getCursor:({isHovering,isDragging})=>isDragging?'grabbing':isHovering?'pointer':'grab',
     onClick:info=>{
       const o=info.object, id=info.layer&&info.layer.id;

@@ -28,6 +28,10 @@ Resultado:
 - Com ano no IPTU: 89,5% → 89,5%.
 - Distritos que mais mudaram: BELA VISTA (5.658 → 5.659).
 
+## 2026-10-29: o meio da tela carrega primeiro
+
+- Ao chegar nas edificações, o meio da tela ficava vazio enquanto as bordas carregavam: o mapa passava os blocos à fila em lotes de 64, na ordem da grade, e a fila só escolhia o mais perto do meio dentro de cada lote. Agora a tela inteira entra na fila, e só saem os blocos que ainda aparecem na tela (os que ficaram para trás num voo esperam ser cancelados). No teste, o meio da tela ficou pronto em 0,4 s em vez de 1,3 s (computador, zoom 13); ao voar até o centro, o mapa baixa menos blocos (97 em vez de 131 no computador, 15 em vez de 37 no celular).
+
 ## 2026-10-26: centro com quadras
 
 - O centro histórico também mostra as quadras até o zoom 13, como o resto da cidade. Antes, os prédios do centro apareciam a partir do zoom 12 e, na vista de quadras, pesavam o dobro de todas as quadras da cidade juntas. No teste, o desenho dessa vista ficou cerca de 65% mais rápido.
