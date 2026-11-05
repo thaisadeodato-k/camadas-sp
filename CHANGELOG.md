@@ -1,6 +1,22 @@
 # Histórico de mudanças
 As atualizações mensais dos dados são registradas aqui automaticamente pelo workflow `gera-dados.yml`; as mudanças no site e no método, à mão.
 
+## 2026-11-05: dados atualizados
+
+Verificação mensal: fontes mudaram no GeoSampa.
+
+Fontes que mudaram:
+
+- **lote_cidadao**: registro: 2026-09-23T10:17:35 → 2026-10-22T18:16:46; feicoes: 1688012 → 1688299
+
+Resultado:
+
+- Lotes ligados ao IPTU: 98,1% na cidade; 0 distrito(s) abaixo de 90%.
+- Distritos: 96.
+- Edificações: 2.789.796 → 2.789.833 (+0,00%).
+- Com ano no IPTU: 89,5% → 89,5%.
+- Distritos que mais mudaram: VILA MARIANA (23.746 → 23.776); MANDAQUI (25.324 → 25.328); LIMAO (22.437 → 22.439).
+
 ## 2026-10-20: dados atualizados
 
 Mudança no código do pipeline.
